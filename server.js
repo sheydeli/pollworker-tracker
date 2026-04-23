@@ -18,8 +18,11 @@ let driverProgress = {};
 
 const MINUTES_PER_STOP = 4;
 const BASE_TRAVEL_MINUTES = 5;
+const BUFFER_MINUTES = 10; // ✅ EXTRA BUFFER ADDED
 
+// =============================
 // UPDATE DRIVER GPS LOCATION
+// =============================
 app.post("/update-location", (req, res) => {
   const { id, lat, lon } = req.body;
 
@@ -41,7 +44,9 @@ app.post("/update-location", (req, res) => {
   res.json({ status: "updated" });
 });
 
+// =============================
 // UPDATE DRIVER CURRENT STOP
+// =============================
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
   const newStop = Number(currentStop);
@@ -68,6 +73,7 @@ app.post("/update-driver-stop", (req, res) => {
 
   progress.currentStop = newStop;
   progress.updatedAt = new Date().toISOString();
+
   progress.reopenedStops = progress.reopenedStops.filter(s => s !== newStop);
 
   res.json({
@@ -78,7 +84,9 @@ app.post("/update-driver-stop", (req, res) => {
   });
 });
 
+// =============================
 // REOPEN STOP
+// =============================
 app.post("/reopen-stop", (req, res) => {
   const { driverId, stopNumber } = req.body;
   const stop = Number(stopNumber);
@@ -105,7 +113,9 @@ app.post("/reopen-stop", (req, res) => {
   res.json({ status: "reopened" });
 });
 
+// =============================
 // RESET DRIVER
+// =============================
 app.post("/reset-driver", (req, res) => {
   const { driverId } = req.body;
 
@@ -119,12 +129,16 @@ app.post("/reset-driver", (req, res) => {
   res.json({ status: "reset" });
 });
 
+// =============================
 // GET ALL DRIVER LOCATIONS
+// =============================
 app.get("/locations", (req, res) => {
   res.json(locations);
 });
 
+// =============================
 // GET SINGLE DRIVER LOCATION
+// =============================
 app.get("/locations/:id", (req, res) => {
   const location = locations.find(l => l.id === req.params.id);
 
@@ -135,13 +149,17 @@ app.get("/locations/:id", (req, res) => {
   res.json(location);
 });
 
+// =============================
 // GET DRIVERS
+// =============================
 app.get("/drivers", (req, res) => {
   const drivers = [...new Set(assignments.map(a => a.driverId))].sort();
   res.json(drivers);
 });
 
+// =============================
 // GET DRIVER ROUTE
+// =============================
 app.get("/driver-route/:driverId", (req, res) => {
   const driverId = String(req.params.driverId);
 
@@ -158,7 +176,9 @@ app.get("/driver-route/:driverId", (req, res) => {
   res.json({ driverId, progress, route });
 });
 
+// =============================
 // PRECINCT STATUS + ETA
+// =============================
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
 
@@ -211,7 +231,12 @@ app.get("/assignment/:precinct", (req, res) => {
       } else {
         statusCode = "on_the_way";
         stopsBeforeYou = index;
-        etaMinutes = BASE_TRAVEL_MINUTES + (index * MINUTES_PER_STOP);
+
+        // ✅ ETA WITH 10 MIN BUFFER
+        etaMinutes =
+          BASE_TRAVEL_MINUTES +
+          (index * MINUTES_PER_STOP) +
+          BUFFER_MINUTES;
       }
     }
   }
@@ -226,7 +251,9 @@ app.get("/assignment/:precinct", (req, res) => {
   });
 });
 
+// =============================
 // ROOT
+// =============================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
