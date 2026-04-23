@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<div id="map" style="height:100vh;"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const id=new URLSearchParams(location.search).get("id");
+
+const map=L.map('map').setView([39.95,-75.16],12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let marker;
+
+async function load(){
+ const res=await fetch(`/locations/${id}`);
+ const d=await res.json();
+
+ if(!marker){
+  marker=L.marker([d.lat,d.lon]).addTo(map);
+ } else {
+  marker.setLatLng([d.lat,d.lon]);
+ }
+}
+
+setInterval(load,5000);
+</script>
+
+</body>
+</html>
