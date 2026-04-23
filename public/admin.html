@@ -40,12 +40,6 @@
       overflow: hidden;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 16px;
-    }
-
     table {
       width: 100%;
       border-collapse: collapse;
@@ -61,18 +55,6 @@
 
     th {
       background: #f1f1f1;
-    }
-
-    tr.clickable {
-      cursor: pointer;
-    }
-
-    tr.clickable:hover {
-      background: #f8f9fa;
-    }
-
-    tr.selected {
-      background: #eaf2ff;
     }
 
     .status {
@@ -102,47 +84,6 @@
       background: #cfe2ff;
       color: #084298;
     }
-
-    .route-title {
-      font-size: 20px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-
-    .route-item {
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
-      background: #fff;
-    }
-
-    .route-item.active {
-      border-color: #0b6efd;
-      background: #eaf2ff;
-    }
-
-    .route-item.arrived {
-      border-color: #198754;
-      background: #e8f5ee;
-    }
-
-    .route-item.waiting {
-      border-color: #ffc107;
-      background: #fff8e1;
-    }
-
-    .small {
-      color: #666;
-      font-size: 13px;
-      margin-top: 4px;
-    }
-
-    @media (max-width: 900px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-    }
   </style>
 </head>
 <body>
@@ -153,28 +94,21 @@
       <div id="map"></div>
     </div>
 
-    <div class="grid">
-      <div class="card">
-        <table>
-          <thead>
-            <tr>
-              <th>Driver</th>
-              <th>Current Stop</th>
-              <th>Status</th>
-              <th>Last GPS Update</th>
-              <th>Route Stops</th>
-            </tr>
-          </thead>
-          <tbody id="driverTable">
-            <tr><td colspan="5">Loading...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <div class="route-title" id="routeTitle">Driver Route</div>
-        <div id="routeDetail">Click a driver to view route details.</div>
-      </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Driver</th>
+            <th>Current Stop</th>
+            <th>Status</th>
+            <th>Last GPS Update</th>
+            <th>Route Stops</th>
+          </tr>
+        </thead>
+        <tbody id="driverTable">
+          <tr><td colspan="5">Loading...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -187,8 +121,6 @@
     }).addTo(map);
 
     let markers = {};
-    let currentData = [];
-    let selectedDriverId = null;
 
     function formatTime(isoString) {
       if (!isoString) return "Unknown";
@@ -211,98 +143,14 @@
       return '<span class="status yellow">En route</span>';
     }
 
-    function renderRoute(driver) {
-      const routeTitle = document.getElementById("routeTitle");
-      const routeDetail = document.getElementById("routeDetail");
-
-      if (!driver) {
-        routeTitle.innerText = "Driver Route";
-        routeDetail.innerHTML = "Click a driver to view route details.";
-        return;
-      }
-
-      routeTitle.innerText = `Route for ${driver.driverId}`;
-      routeDetail.innerHTML = "";
-
-      driver.route.forEach(stop => {
-        const div = document.createElement("div");
-        div.className = "route-item";
-
-        const isActive =
-          driver.progress &&
-          Number(driver.progress.currentStop) === Number(stop.stopNumber);
-
-        const isArrived =
-          driver.progress &&
-          driver.progress.arrived === true &&
-          Number(driver.progress.arrivedStop) === Number(stop.stopNumber);
-
-        const isWaiting =
-          driver.progress &&
-          Number(stop.stopNumber) > Number(driver.progress.currentStop);
-
-        if (isArrived) {
-          div.classList.add("arrived");
-        } else if (isActive) {
-          div.classList.add("active");
-        } else if (isWaiting) {
-          div.classList.add("waiting");
-        }
-
-        div.innerHTML = `
-          <div><strong>Stop ${stop.stopNumber}</strong></div>
-          <div><strong>Precinct:</strong> ${stop.precinct}</div>
-          <div><strong>Location:</strong> ${stop.placeName}</div>
-          <div><strong>Address:</strong> ${stop.streetAddress}</div>
-        `;
-
-        routeDetail.appendChild(div);
-      });
-    }
-
-    function renderTable(drivers) {
-      const table = document.getElementById("driverTable");
-      table.innerHTML = "";
-
-      drivers.forEach(driver => {
-        const row = document.createElement("tr");
-        row.className = "clickable";
-
-        if (driver.driverId === selectedDriverId) {
-          row.classList.add("selected");
-        }
-
-        row.innerHTML = `
-          <td>${driver.driverId}</td>
-          <td>${driver.progress ? driver.progress.currentStop : "Not started"}</td>
-          <td>${statusBadge(driver.progress, !!driver.location)}</td>
-          <td>${driver.location ? formatTime(driver.location.updatedAt) : "No GPS yet"}</td>
-          <td>${driver.route.length}</td>
-        `;
-
-        row.addEventListener("click", () => {
-          selectedDriverId = driver.driverId;
-          renderTable(currentData);
-          renderRoute(driver);
-
-          if (driver.location) {
-            map.setView([driver.location.lat, driver.location.lon], 14);
-            if (markers[driver.driverId]) {
-              markers[driver.driverId].openPopup();
-            }
-          }
-        });
-
-        table.appendChild(row);
-      });
-    }
-
     async function loadAdmin() {
       const res = await fetch("/admin-data");
       const data = await res.json();
-      currentData = data.drivers;
 
-      currentData.forEach(driver => {
+      const table = document.getElementById("driverTable");
+      table.innerHTML = "";
+
+      data.drivers.forEach(driver => {
         if (driver.location) {
           const lat = driver.location.lat;
           const lon = driver.location.lon;
@@ -315,14 +163,17 @@
               .bindPopup(driver.driverId);
           }
         }
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${driver.driverId}</td>
+          <td>${driver.progress ? driver.progress.currentStop : "Not started"}</td>
+          <td>${statusBadge(driver.progress, !!driver.location)}</td>
+          <td>${driver.location ? formatTime(driver.location.updatedAt) : "No GPS yet"}</td>
+          <td>${driver.route.length}</td>
+        `;
+        table.appendChild(row);
       });
-
-      renderTable(currentData);
-
-      if (selectedDriverId) {
-        const selectedDriver = currentData.find(d => d.driverId === selectedDriverId);
-        renderRoute(selectedDriver || null);
-      }
     }
 
     loadAdmin();
