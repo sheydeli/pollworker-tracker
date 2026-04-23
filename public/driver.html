@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>Driver Tracker</h2>
+
+<input id="id" placeholder="Driver ID">
+<input id="stop" placeholder="Stop Number">
+
+<button onclick="start()">Start GPS</button>
+<button onclick="next()">Next Stop</button>
+
+<script>
+let watch;
+
+function sendLocation(id,lat,lon){
+ fetch('/update-location',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({id,lat,lon})
+ });
+}
+
+function sendStop(id,stop){
+ fetch('/update-driver-stop',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({driverId:id,currentStop:stop})
+ });
+}
+
+function start(){
+ const id=document.getElementById('id').value;
+
+ watch=navigator.geolocation.watchPosition(p=>{
+   sendLocation(id,p.coords.latitude,p.coords.longitude);
+ });
+}
+
+function next(){
+ const id=document.getElementById('id').value;
+ let s=Number(document.getElementById('stop').value);
+ s++;
+ document.getElementById('stop').value=s;
+ sendStop(id,s);
+}
+</script>
+
+</body>
+</html>
