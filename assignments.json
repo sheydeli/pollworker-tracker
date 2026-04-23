@@ -1,0 +1,93 @@
+[
+  {
+    "placeName": "BARRY RECREATION CENTER",
+    "streetAddress": "1800 BIGLER ST",
+    "precinct": "2605",
+    "driverId": "1",
+    "stopNumber": 1
+  },
+  {
+    "placeName": "BARRY RECREATION CENTER",
+    "streetAddress": "1800 BIGLER ST",
+    "precinct": "2606",
+    "driverId": "1",
+    "stopNumber": 2
+  },
+  {
+    "placeName": "BARRY RECREATION CENTER",
+    "streetAddress": "1800 BIGLER ST",
+    "precinct": "2609",
+    "driverId": "1",
+    "stopNumber": 3
+  },
+  {
+    "placeName": "CHICKIES & PETE'S PLAY 2",
+    "streetAddress": "1526 PACKER AVE",
+    "precinct": "3914",
+    "driverId": "1",
+    "stopNumber": 4
+  },
+  {
+    "placeName": "CITY LIFE CHURCH (CALVARY TEMPLE CAMPUS)",
+    "streetAddress": "3301 S 20TH ST",
+    "precinct": "2603",
+    "driverId": "1",
+    "stopNumber": 5
+  },
+  {
+    "placeName": "CITY LIFE CHURCH (CALVARY TEMPLE CAMPUS)",
+    "streetAddress": "3301 S 20TH ST",
+    "precinct": "2602",
+    "driverId": "1",
+    "stopNumber": 6
+  },
+  {
+    "placeName": "CITY LIFE CHURCH (CALVARY TEMPLE CAMPUS)",
+    "streetAddress": "3301 S 20TH ST",
+    "precinct": "2601",
+    "driverId": "1",
+    "stopNumber": 7
+  },
+  {
+    "placeName": "CITY LIFE CHURCH (CALVARY TEMPLE CAMPUS)",
+    "streetAddress": "3301 S 20TH ST",
+    "precinct": "2623",
+    "driverId": "1",
+    "stopNumber": 8
+  },
+  {
+    "placeName": "CITY LIFE CHURCH (CALVARY TEMPLE CAMPUS)",
+    "streetAddress": "3301 S 20TH ST",
+    "precinct": "2620",
+    "driverId": "1",
+    "stopNumber": 9
+  },
+  {
+    "placeName": "G.A.M.P. SCHOOL",
+    "streetAddress": "2136 W RITNER ST",
+    "precinct": "2615",
+    "driverId": "1",
+    "stopNumber": 10
+  },
+  {
+    "placeName": "G.A.M.P. SCHOOL",
+    "streetAddress": "2136 W RITNER ST",
+    "precinct": "2613",
+    "driverId": "1",
+    "stopNumber": 11
+  },
+  {
+    "placeName": "G.A.M.P. SCHOOL",
+    "streetAddress": "2136 W RITNER ST",
+    "precinct": "2614",
+    "driverId": "1",
+    "stopNumber": 12
+  },
+  {
+    "placeName": "G.A.M.P. SCHOOL",
+    "streetAddress": "2136 W RITNER ST",
+    "precinct": "2618",
+    "driverId": "1",
+    "stopNumber": 13
+  }
+]
