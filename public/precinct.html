@@ -245,23 +245,4 @@
             driverMarker = L.marker([lat, lon]).addTo(map);
             driverMarker.bindPopup(`Driver: ${assignment.driverId}`).openPopup();
           } else {
-            driverMarker.setLatLng([lat, lon]);
-          }
-
-          if (firstLoad) {
-            map.setView([lat, lon], 14);
-            firstLoad = false;
-          }
-        }
-      } catch (err) {
-        statusBanner.className = "status-banner status-red";
-        statusBanner.innerText = "Unable to load precinct data";
-        info.innerHTML = `<span class="error">Unable to load precinct data.</span>`;
-      }
-    }
-
-    loadPrecinct();
-    setInterval(loadPrecinct, 5000);
-  </script>
-</body>
-</html>
+            driverMarker.setLatLng([lat
