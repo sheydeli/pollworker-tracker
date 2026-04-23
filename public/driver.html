@@ -146,7 +146,7 @@
       </div>
 
       <div class="small">
-        Select your name, load your route, start GPS, then use Arrived / Next Stop.
+        Select your name, load your route, allow location access, and GPS will start automatically.
       </div>
     </div>
 
@@ -277,8 +277,11 @@
 
         setStatus(
           `Route loaded for ${driverName}
-Total Stops: ${loadedRoute.length}`
+Total Stops: ${loadedRoute.length}
+Starting GPS automatically...`
         );
+
+        startTracking();
       } catch (err) {
         routeList.innerHTML = "Error loading route.";
         setStatus("Error loading route.");
@@ -360,6 +363,11 @@ Now working on Stop: ${currentStop}`
 
       if (!navigator.geolocation) {
         setStatus("Geolocation is not supported on this device.");
+        return;
+      }
+
+      if (watchId !== null) {
+        setStatus("GPS already running.");
         return;
       }
 
