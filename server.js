@@ -42,12 +42,51 @@ app.post("/update-location", (req, res) => {
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
 
-  driverProgress[driverId] = {
-    currentStop: Number(currentStop),
-    updatedAt: new Date().toISOString()
-  };
+  if (!driverProgress[driverId]) {
+    driverProgress[driverId] = {};
+  }
+
+  driverProgress[driverId].currentStop = Number(currentStop);
+  driverProgress[driverId].updatedAt = new Date().toISOString();
+
+  // if stop changes manually, reset arrived unless re-marked
+  if (driverProgress[driverId].arrivedStop !== Number(currentStop)) {
+    driverProgress[driverId].arrived = false;
+    driverProgress[driverId].arrivedStop = null;
+  }
 
   res.json({ status: "updated" });
+});
+
+// MARK DRIVER ARRIVED
+app.post("/driver-arrived", (req, res) => {
+  const { driverId, currentStop } = req.body;
+
+  if (!driverProgress[driverId]) {
+    driverProgress[driverId] = {};
+  }
+
+  driverProgress[driverId].currentStop = Number(currentStop);
+  driverProgress[driverId].arrived = true;
+  driverProgress[driverId].arrivedStop = Number(currentStop);
+  driverProgress[driverId].updatedAt = new Date().toISOString();
+
+  res.json({ status: "arrived recorded" });
+});
+
+// MARK DRIVER LEFT CURRENT STOP
+app.post("/driver-left-stop", (req, res) => {
+  const { driverId } = req.body;
+
+  if (!driverProgress[driverId]) {
+    driverProgress[driverId] = {};
+  }
+
+  driverProgress[driverId].arrived = false;
+  driverProgress[driverId].arrivedStop = null;
+  driverProgress[driverId].updatedAt = new Date().toISOString();
+
+  res.json({ status: "left stop recorded" });
 });
 
 // GET ALL DRIVER LOCATIONS
@@ -79,15 +118,26 @@ app.get("/assignment/:precinct", (req, res) => {
   const progress = driverProgress[assignment.driverId] || null;
 
   let stopsBeforeYou = null;
+  let driverAtYourStop = false;
+
   if (progress && typeof progress.currentStop === "number") {
     stopsBeforeYou = Math.max(assignment.stopNumber - progress.currentStop, 0);
+
+    if (
+      progress.arrived === true &&
+      progress.arrivedStop === assignment.stopNumber
+    ) {
+      driverAtYourStop = true;
+      stopsBeforeYou = 0;
+    }
   }
 
   res.json({
     assignment,
     driverLocation,
     progress,
-    stopsBeforeYou
+    stopsBeforeYou,
+    driverAtYourStop
   });
 });
 
