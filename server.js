@@ -49,7 +49,6 @@ app.post("/update-driver-stop", (req, res) => {
   driverProgress[driverId].currentStop = Number(currentStop);
   driverProgress[driverId].updatedAt = new Date().toISOString();
 
-  // if stop changes manually, reset arrived unless re-marked
   if (driverProgress[driverId].arrivedStop !== Number(currentStop)) {
     driverProgress[driverId].arrived = false;
     driverProgress[driverId].arrivedStop = null;
@@ -103,6 +102,27 @@ app.get("/locations/:id", (req, res) => {
   }
 
   res.json(location);
+});
+
+// GET DRIVER ROUTE
+app.get("/driver-route/:driverId", (req, res) => {
+  const driverId = String(req.params.driverId);
+
+  const route = assignments
+    .filter(a => a.driverId === driverId)
+    .sort((a, b) => a.stopNumber - b.stopNumber);
+
+  if (!route.length) {
+    return res.status(404).json({ error: "Driver route not found" });
+  }
+
+  const progress = driverProgress[driverId] || null;
+
+  res.json({
+    driverId,
+    progress,
+    route
+  });
 });
 
 // GET PRECINCT ASSIGNMENT + DRIVER INFO
