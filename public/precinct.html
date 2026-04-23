@@ -1,48 +1,138 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <meta charset="utf-8" />
+  <title>Precinct Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    #topbar {
+      padding: 16px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+    }
+
+    #title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    #info {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    #map {
+      height: calc(100vh - 190px);
+      width: 100%;
+    }
+
+    .error {
+      color: #b00020;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
+  <div id="topbar">
+    <div id="title">Precinct Tracker</div>
+    <div id="info">Loading...</div>
+  </div>
 
-<div id="info"></div>
-<div id="map" style="height:80vh;"></div>
+  <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script>
-const p=new URLSearchParams(location.search).get("precinct");
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const precinct = params.get("precinct");
+    const info = document.getElementById("info");
 
-const map=L.map('map').setView([39.95,-75.16],12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    if (!precinct) {
+      info.innerHTML = '<span class="error">Missing precinct in URL.</span>';
+      throw new Error("Missing precinct");
+    }
 
-let marker;
+    const map = L.map("map").setView([39.9526, -75.1652], 12);
 
-async function load(){
- const res=await fetch(`/assignment/${p}`);
- const d=await res.json();
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
 
- info.innerHTML=`
- Precinct: ${d.assignment.precinct}<br>
- Driver: ${d.assignment.driverId}<br>
- Stop: ${d.assignment.stopNumber}<br>
- Stops Before You: ${d.stopsBeforeYou}
- `;
+    let driverMarker = null;
+    let firstLoad = true;
 
- if(d.driverLocation){
-  const lat=d.driverLocation.lat;
-  const lon=d.driverLocation.lon;
+    function formatTime(isoString) {
+      if (!isoString) return "Unknown";
+      return new Date(isoString).toLocaleString();
+    }
 
-  if(!marker){
-    marker=L.marker([lat,lon]).addTo(map);
-  } else {
-    marker.setLatLng([lat,lon]);
-  }
- }
-}
+    async function loadPrecinct() {
+      try {
+        const res = await fetch(`/assignment/${precinct}`);
 
-setInterval(load,5000);
-load();
-</script>
+        if (!res.ok) {
+          throw new Error("Precinct not found");
+        }
 
+        const data = await res.json();
+        const assignment = data.assignment;
+        const driverLocation = data.driverLocation;
+        const progress = data.progress;
+        const stopsBeforeYou = data.stopsBeforeYou;
+
+        let html = `
+          <strong>Precinct:</strong> ${assignment.precinct}<br>
+          <strong>Assigned Driver:</strong> ${assignment.driverId}<br>
+          <strong>Stop Number:</strong> ${assignment.stopNumber}<br>
+          <strong>Location:</strong> ${assignment.placeName}<br>
+          <strong>Address:</strong> ${assignment.streetAddress}<br>
+        `;
+
+        if (progress) {
+          html += `<strong>Driver Current Stop:</strong> ${progress.currentStop}<br>`;
+          html += `<strong>Stops Before You:</strong> ${stopsBeforeYou}<br>`;
+          html += `<strong>Progress Updated:</strong> ${formatTime(progress.updatedAt)}<br>`;
+        } else {
+          html += `<strong>Driver Current Stop:</strong> Not started yet<br>`;
+        }
+
+        if (driverLocation) {
+          html += `<strong>Driver Last GPS Update:</strong> ${formatTime(driverLocation.updatedAt)}<br>`;
+        } else {
+          html += `<strong>Driver GPS:</strong> Waiting for driver location<br>`;
+        }
+
+        info.innerHTML = html;
+
+        if (driverLocation) {
+          const lat = driverLocation.lat;
+          const lon = driverLocation.lon;
+
+          if (!driverMarker) {
+            driverMarker = L.marker([lat, lon]).addTo(map);
+            driverMarker.bindPopup(`Driver ${assignment.driverId}`).openPopup();
+          } else {
+            driverMarker.setLatLng([lat, lon]);
+          }
+
+          if (firstLoad) {
+            map.setView([lat, lon], 14);
+            firstLoad = false;
+          }
+        }
+      } catch (err) {
+        info.innerHTML = `<span class="error">Unable to load precinct data.</span>`;
+      }
+    }
+
+    loadPrecinct();
+    setInterval(loadPrecinct, 5000);
+  </script>
 </body>
 </html>
