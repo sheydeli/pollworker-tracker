@@ -1,195 +1,332 @@
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
-
-const app = express();
-
-app.use(express.json());
-app.use(express.static("public", { index: false }));
-
-const assignments = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "assignments.json"), "utf8")
-);
-
-const validPrecincts = new Set(assignments.map(a => a.precinct));
-
-let locations = [];
-let driverProgress = {};
-
-// UPDATE DRIVER GPS LOCATION
-app.post("/update-location", (req, res) => {
-  const { id, lat, lon } = req.body;
-
-  const existing = locations.find(l => l.id === id);
-
-  if (existing) {
-    existing.lat = lat;
-    existing.lon = lon;
-    existing.updatedAt = new Date().toISOString();
-  } else {
-    locations.push({
-      id,
-      lat,
-      lon,
-      updatedAt: new Date().toISOString()
-    });
-  }
-
-  res.json({ status: "updated" });
-});
-
-// UPDATE DRIVER CURRENT STOP
-app.post("/update-driver-stop", (req, res) => {
-  const { driverId, currentStop } = req.body;
-
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {};
-  }
-
-  driverProgress[driverId].currentStop = Number(currentStop);
-  driverProgress[driverId].updatedAt = new Date().toISOString();
-
-  if (driverProgress[driverId].arrivedStop !== Number(currentStop)) {
-    driverProgress[driverId].arrived = false;
-    driverProgress[driverId].arrivedStop = null;
-  }
-
-  res.json({ status: "updated" });
-});
-
-// MARK DRIVER ARRIVED
-app.post("/driver-arrived", (req, res) => {
-  const { driverId, currentStop } = req.body;
-
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {};
-  }
-
-  driverProgress[driverId].currentStop = Number(currentStop);
-  driverProgress[driverId].arrived = true;
-  driverProgress[driverId].arrivedStop = Number(currentStop);
-  driverProgress[driverId].updatedAt = new Date().toISOString();
-
-  res.json({ status: "arrived recorded" });
-});
-
-// MARK DRIVER LEFT STOP
-app.post("/driver-left-stop", (req, res) => {
-  const { driverId } = req.body;
-
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {};
-  }
-
-  driverProgress[driverId].arrived = false;
-  driverProgress[driverId].arrivedStop = null;
-  driverProgress[driverId].updatedAt = new Date().toISOString();
-
-  res.json({ status: "left stop recorded" });
-});
-
-// GET ALL DRIVER LOCATIONS
-app.get("/locations", (req, res) => {
-  res.json(locations);
-});
-
-// GET SINGLE DRIVER LOCATION
-app.get("/locations/:id", (req, res) => {
-  const location = locations.find(l => l.id === req.params.id);
-
-  if (!location) {
-    return res.status(404).json({ error: "Driver not found" });
-  }
-
-  res.json(location);
-});
-
-// GET DRIVER ROUTE
-app.get("/driver-route/:driverId", (req, res) => {
-  const driverId = String(req.params.driverId);
-
-  const route = assignments
-    .filter(a => a.driverId === driverId)
-    .sort((a, b) => a.stopNumber - b.stopNumber);
-
-  if (!route.length) {
-    return res.status(404).json({ error: "Driver route not found" });
-  }
-
-  const progress = driverProgress[driverId] || null;
-
-  res.json({
-    driverId,
-    progress,
-    route
-  });
-});
-
-// ADMIN DASHBOARD DATA
-app.get("/admin-data", (req, res) => {
-  const uniqueDrivers = [...new Set(assignments.map(a => a.driverId))];
-
-  const drivers = uniqueDrivers.map(driverId => {
-    const route = assignments
-      .filter(a => a.driverId === driverId)
-      .sort((a, b) => a.stopNumber - b.stopNumber);
-
-    const location = locations.find(l => l.id === driverId) || null;
-    const progress = driverProgress[driverId] || null;
-
-    return {
-      driverId,
-      route,
-      location,
-      progress
-    };
-  });
-
-  res.json({ drivers });
-});
-
-// GET PRECINCT ASSIGNMENT + DRIVER INFO
-app.get("/assignment/:precinct", (req, res) => {
-  const precinct = String(req.params.precinct);
-
-  if (!validPrecincts.has(precinct)) {
-    return res.status(404).json({ error: "Invalid precinct" });
-  }
-
-  const assignment = assignments.find(a => a.precinct === precinct);
-  const driverLocation = locations.find(l => l.id === assignment.driverId);
-  const progress = driverProgress[assignment.driverId] || null;
-
-  let stopsBeforeYou = null;
-  let driverAtYourStop = false;
-
-  if (progress && typeof progress.currentStop === "number") {
-    stopsBeforeYou = Math.max(assignment.stopNumber - progress.currentStop, 0);
-
-    if (
-      progress.arrived === true &&
-      progress.arrivedStop === assignment.stopNumber
-    ) {
-      driverAtYourStop = true;
-      stopsBeforeYou = 0;
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Dispatch Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      color: #222;
     }
-  }
 
-  res.json({
-    assignment,
-    driverLocation,
-    progress,
-    stopsBeforeYou,
-    driverAtYourStop
-  });
-});
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px;
+    }
 
-// ROOT → LOGIN PAGE
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "login.html"));
-});
+    .title {
+      font-size: 30px;
+      font-weight: bold;
+      margin-bottom: 16px;
+    }
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
-});
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    #map {
+      height: 450px;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f1f1;
+    }
+
+    tr.clickable {
+      cursor: pointer;
+    }
+
+    tr.clickable:hover {
+      background: #f8f9fa;
+    }
+
+    tr.selected {
+      background: #eaf2ff;
+    }
+
+    .status {
+      font-weight: bold;
+      padding: 6px 10px;
+      border-radius: 999px;
+      display: inline-block;
+      font-size: 12px;
+    }
+
+    .red {
+      background: #f8d7da;
+      color: #842029;
+    }
+
+    .yellow {
+      background: #fff3cd;
+      color: #664d03;
+    }
+
+    .green {
+      background: #d1e7dd;
+      color: #0f5132;
+    }
+
+    .blue {
+      background: #cfe2ff;
+      color: #084298;
+    }
+
+    .route-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .route-item {
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+
+    .route-item.active {
+      border-color: #0b6efd;
+      background: #eaf2ff;
+    }
+
+    .route-item.arrived {
+      border-color: #198754;
+      background: #e8f5ee;
+    }
+
+    .route-item.waiting {
+      border-color: #ffc107;
+      background: #fff8e1;
+    }
+
+    .small {
+      color: #666;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">Dispatch Dashboard</div>
+
+    <div class="card">
+      <div id="map"></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Driver</th>
+              <th>Current Stop</th>
+              <th>Status</th>
+              <th>Last GPS Update</th>
+              <th>Route Stops</th>
+            </tr>
+          </thead>
+          <tbody id="driverTable">
+            <tr><td colspan="5">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="route-title" id="routeTitle">Driver Route</div>
+        <div id="routeDetail">Click a driver to view route details.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map("map").setView([39.9526, -75.1652], 11);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    let markers = {};
+    let currentData = [];
+    let selectedDriverId = null;
+
+    function formatTime(isoString) {
+      if (!isoString) return "Unknown";
+      return new Date(isoString).toLocaleString();
+    }
+
+    function statusBadge(progress, hasGps) {
+      if (!hasGps) {
+        return '<span class="status blue">No GPS yet</span>';
+      }
+
+      if (!progress) {
+        return '<span class="status red">Not started</span>';
+      }
+
+      if (progress.arrived) {
+        return '<span class="status green">Arrived at stop</span>';
+      }
+
+      return '<span class="status yellow">En route</span>';
+    }
+
+    function renderRoute(driver) {
+      const routeTitle = document.getElementById("routeTitle");
+      const routeDetail = document.getElementById("routeDetail");
+
+      if (!driver) {
+        routeTitle.innerText = "Driver Route";
+        routeDetail.innerHTML = "Click a driver to view route details.";
+        return;
+      }
+
+      routeTitle.innerText = `Route for ${driver.driverId}`;
+      routeDetail.innerHTML = "";
+
+      driver.route.forEach(stop => {
+        const div = document.createElement("div");
+        div.className = "route-item";
+
+        const isActive =
+          driver.progress &&
+          Number(driver.progress.currentStop) === Number(stop.stopNumber);
+
+        const isArrived =
+          driver.progress &&
+          driver.progress.arrived === true &&
+          Number(driver.progress.arrivedStop) === Number(stop.stopNumber);
+
+        const isWaiting =
+          driver.progress &&
+          Number(stop.stopNumber) > Number(driver.progress.currentStop);
+
+        if (isArrived) {
+          div.classList.add("arrived");
+        } else if (isActive) {
+          div.classList.add("active");
+        } else if (isWaiting) {
+          div.classList.add("waiting");
+        }
+
+        div.innerHTML = `
+          <div><strong>Stop ${stop.stopNumber}</strong></div>
+          <div><strong>Precinct:</strong> ${stop.precinct}</div>
+          <div><strong>Location:</strong> ${stop.placeName}</div>
+          <div><strong>Address:</strong> ${stop.streetAddress}</div>
+        `;
+
+        routeDetail.appendChild(div);
+      });
+    }
+
+    function renderTable(drivers) {
+      const table = document.getElementById("driverTable");
+      table.innerHTML = "";
+
+      drivers.forEach(driver => {
+        const row = document.createElement("tr");
+        row.className = "clickable";
+
+        if (driver.driverId === selectedDriverId) {
+          row.classList.add("selected");
+        }
+
+        row.innerHTML = `
+          <td>${driver.driverId}</td>
+          <td>${driver.progress ? driver.progress.currentStop : "Not started"}</td>
+          <td>${statusBadge(driver.progress, !!driver.location)}</td>
+          <td>${driver.location ? formatTime(driver.location.updatedAt) : "No GPS yet"}</td>
+          <td>${driver.route.length}</td>
+        `;
+
+        row.addEventListener("click", () => {
+          selectedDriverId = driver.driverId;
+          renderTable(currentData);
+          renderRoute(driver);
+
+          if (driver.location) {
+            map.setView([driver.location.lat, driver.location.lon], 14);
+            if (markers[driver.driverId]) {
+              markers[driver.driverId].openPopup();
+            }
+          }
+        });
+
+        table.appendChild(row);
+      });
+    }
+
+    async function loadAdmin() {
+      const res = await fetch("/admin-data");
+      const data = await res.json();
+      currentData = data.drivers;
+
+      currentData.forEach(driver => {
+        if (driver.location) {
+          const lat = driver.location.lat;
+          const lon = driver.location.lon;
+
+          if (markers[driver.driverId]) {
+            markers[driver.driverId].setLatLng([lat, lon]);
+          } else {
+            markers[driver.driverId] = L.marker([lat, lon])
+              .addTo(map)
+              .bindPopup(driver.driverId);
+          }
+        }
+      });
+
+      renderTable(currentData);
+
+      if (selectedDriverId) {
+        const selectedDriver = currentData.find(d => d.driverId === selectedDriverId);
+        renderRoute(selectedDriver || null);
+      }
+    }
+
+    loadAdmin();
+    setInterval(loadAdmin, 5000);
+  </script>
+</body>
+</html>
