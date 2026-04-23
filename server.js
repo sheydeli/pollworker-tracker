@@ -73,21 +73,6 @@ app.post("/driver-arrived", (req, res) => {
   res.json({ status: "arrived recorded" });
 });
 
-// MARK DRIVER LEFT CURRENT STOP
-app.post("/driver-left-stop", (req, res) => {
-  const { driverId } = req.body;
-
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {};
-  }
-
-  driverProgress[driverId].arrived = false;
-  driverProgress[driverId].arrivedStop = null;
-  driverProgress[driverId].updatedAt = new Date().toISOString();
-
-  res.json({ status: "left stop recorded" });
-});
-
 // GET ALL DRIVER LOCATIONS
 app.get("/locations", (req, res) => {
   res.json(locations);
@@ -102,6 +87,12 @@ app.get("/locations/:id", (req, res) => {
   }
 
   res.json(location);
+});
+
+// GET UNIQUE DRIVER LIST
+app.get("/drivers", (req, res) => {
+  const drivers = [...new Set(assignments.map(a => a.driverId))].sort();
+  res.json(drivers);
 });
 
 // GET DRIVER ROUTE
@@ -123,6 +114,29 @@ app.get("/driver-route/:driverId", (req, res) => {
     progress,
     route
   });
+});
+
+// ADMIN DASHBOARD DATA
+app.get("/admin-data", (req, res) => {
+  const uniqueDrivers = [...new Set(assignments.map(a => a.driverId))];
+
+  const drivers = uniqueDrivers.map(driverId => {
+    const route = assignments
+      .filter(a => a.driverId === driverId)
+      .sort((a, b) => a.stopNumber - b.stopNumber);
+
+    const location = locations.find(l => l.id === driverId) || null;
+    const progress = driverProgress[driverId] || null;
+
+    return {
+      driverId,
+      route,
+      location,
+      progress
+    };
+  });
+
+  res.json({ drivers });
 });
 
 // GET PRECINCT ASSIGNMENT + DRIVER INFO
