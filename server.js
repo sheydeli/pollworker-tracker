@@ -49,28 +49,7 @@ app.post("/update-driver-stop", (req, res) => {
   driverProgress[driverId].currentStop = Number(currentStop);
   driverProgress[driverId].updatedAt = new Date().toISOString();
 
-  if (driverProgress[driverId].arrivedStop !== Number(currentStop)) {
-    driverProgress[driverId].arrived = false;
-    driverProgress[driverId].arrivedStop = null;
-  }
-
   res.json({ status: "updated" });
-});
-
-// MARK DRIVER ARRIVED
-app.post("/driver-arrived", (req, res) => {
-  const { driverId, currentStop } = req.body;
-
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {};
-  }
-
-  driverProgress[driverId].currentStop = Number(currentStop);
-  driverProgress[driverId].arrived = true;
-  driverProgress[driverId].arrivedStop = Number(currentStop);
-  driverProgress[driverId].updatedAt = new Date().toISOString();
-
-  res.json({ status: "arrived recorded" });
 });
 
 // GET ALL DRIVER LOCATIONS
@@ -151,17 +130,21 @@ app.get("/assignment/:precinct", (req, res) => {
   const driverLocation = locations.find(l => l.id === assignment.driverId);
   const progress = driverProgress[assignment.driverId] || null;
 
+  let statusCode = "not_started";
   let stopsBeforeYou = null;
-  let driverAtYourStop = false;
 
   if (progress && typeof progress.currentStop === "number") {
-    stopsBeforeYou = Math.max(assignment.stopNumber - progress.currentStop, 0);
+    const currentStop = Number(progress.currentStop);
+    const yourStop = Number(assignment.stopNumber);
 
-    if (
-      progress.arrived === true &&
-      progress.arrivedStop === assignment.stopNumber
-    ) {
-      driverAtYourStop = true;
+    if (currentStop < yourStop) {
+      statusCode = "on_the_way";
+      stopsBeforeYou = yourStop - currentStop;
+    } else if (currentStop === yourStop) {
+      statusCode = "at_your_stop";
+      stopsBeforeYou = 0;
+    } else if (currentStop > yourStop) {
+      statusCode = "past_your_stop";
       stopsBeforeYou = 0;
     }
   }
@@ -171,7 +154,7 @@ app.get("/assignment/:precinct", (req, res) => {
     driverLocation,
     progress,
     stopsBeforeYou,
-    driverAtYourStop
+    statusCode
   });
 });
 
