@@ -109,35 +109,27 @@ app.post("/reopen-stop", (req, res) => {
 
   progress.updatedAt = new Date().toISOString();
 
-  res.json({
-    status: "reopened",
-    completedStops: progress.completedStops,
-    reopenedStops: progress.reopenedStops
-  });
+  res.json({ status: "reopened" });
 });
 
 // =============================
-// GET ALL LOCATIONS
+// RESET DRIVER ROUTE
 // =============================
-app.get("/locations", (req, res) => {
-  res.json(locations);
+app.post("/reset-driver", (req, res) => {
+  const { driverId } = req.body;
+
+  driverProgress[driverId] = {
+    currentStop: null,
+    completedStops: [],
+    reopenedStops: [],
+    updatedAt: new Date().toISOString()
+  };
+
+  res.json({ status: "reset" });
 });
 
 // =============================
-// GET SINGLE DRIVER LOCATION
-// =============================
-app.get("/locations/:id", (req, res) => {
-  const location = locations.find(l => l.id === req.params.id);
-
-  if (!location) {
-    return res.status(404).json({ error: "Driver not found" });
-  }
-
-  res.json(location);
-});
-
-// =============================
-// GET DRIVER LIST
+// GET DRIVERS
 // =============================
 app.get("/drivers", (req, res) => {
   const drivers = [...new Set(assignments.map(a => a.driverId))].sort();
@@ -154,50 +146,17 @@ app.get("/driver-route/:driverId", (req, res) => {
     .filter(a => a.driverId === driverId)
     .sort((a, b) => a.stopNumber - b.stopNumber);
 
-  if (!route.length) {
-    return res.status(404).json({ error: "Driver route not found" });
-  }
-
   const progress = driverProgress[driverId] || {
     currentStop: null,
     completedStops: [],
     reopenedStops: []
   };
 
-  res.json({
-    driverId,
-    progress,
-    route
-  });
+  res.json({ driverId, progress, route });
 });
 
 // =============================
-// ADMIN DASHBOARD DATA
-// =============================
-app.get("/admin-data", (req, res) => {
-  const uniqueDrivers = [...new Set(assignments.map(a => a.driverId))];
-
-  const drivers = uniqueDrivers.map(driverId => {
-    const route = assignments
-      .filter(a => a.driverId === driverId)
-      .sort((a, b) => a.stopNumber - b.stopNumber);
-
-    const location = locations.find(l => l.id === driverId) || null;
-    const progress = driverProgress[driverId] || null;
-
-    return {
-      driverId,
-      route,
-      location,
-      progress
-    };
-  });
-
-  res.json({ drivers });
-});
-
-// =============================
-// PRECINCT STATUS WITH ETA
+// PRECINCT STATUS + ETA
 // =============================
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
@@ -229,10 +188,8 @@ app.get("/assignment/:precinct", (req, res) => {
 
     if (isCompleted && !isReopened) {
       statusCode = "completed_or_return";
-      stopsBeforeYou = 0;
-      etaMinutes = null;
     } else {
-      const normalTodoStops = driverRoute
+      const normalStops = driverRoute
         .map(a => Number(a.stopNumber))
         .filter(stop =>
           stop !== currentStop &&
@@ -240,27 +197,21 @@ app.get("/assignment/:precinct", (req, res) => {
           !reopenedStops.includes(stop)
         );
 
-      const activeRouteOrder = [
+      const activeRoute = [
         currentStop,
-        ...normalTodoStops,
+        ...normalStops,
         ...reopenedStops
       ];
 
-      const yourIndex = activeRouteOrder.indexOf(yourStop);
+      const index = activeRoute.indexOf(yourStop);
 
-      if (yourIndex === -1) {
+      if (index === -1) {
         statusCode = "completed_or_return";
-        stopsBeforeYou = 0;
-        etaMinutes = null;
       } else {
         statusCode = "on_the_way";
-        stopsBeforeYou = yourIndex;
+        stopsBeforeYou = index;
 
-        if (stopsBeforeYou === 0) {
-          etaMinutes = BASE_TRAVEL_MINUTES;
-        } else {
-          etaMinutes = BASE_TRAVEL_MINUTES + (stopsBeforeYou * MINUTES_PER_STOP);
-        }
+        etaMinutes = BASE_TRAVEL_MINUTES + (index * MINUTES_PER_STOP);
       }
     }
   }
@@ -276,7 +227,7 @@ app.get("/assignment/:precinct", (req, res) => {
 });
 
 // =============================
-// ROOT → LOGIN PAGE
+// ROOT
 // =============================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
