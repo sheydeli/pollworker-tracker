@@ -16,6 +16,9 @@ const validPrecincts = new Set(assignments.map(a => a.precinct));
 let locations = [];
 let driverProgress = {};
 
+const MINUTES_PER_STOP = 4;
+const BASE_TRAVEL_MINUTES = 5;
+
 // =============================
 // UPDATE DRIVER GPS LOCATION
 // =============================
@@ -70,7 +73,6 @@ app.post("/update-driver-stop", (req, res) => {
   progress.currentStop = newStop;
   progress.updatedAt = new Date().toISOString();
 
-  // If a reopened stop is started again, remove it
   progress.reopenedStops = progress.reopenedStops.filter(s => s !== newStop);
 
   res.json({
@@ -82,7 +84,7 @@ app.post("/update-driver-stop", (req, res) => {
 });
 
 // =============================
-// REOPEN STOP (UNDO)
+// REOPEN STOP
 // =============================
 app.post("/reopen-stop", (req, res) => {
   const { driverId, stopNumber } = req.body;
@@ -99,10 +101,8 @@ app.post("/reopen-stop", (req, res) => {
 
   const progress = driverProgress[driverId];
 
-  // Remove from completed
   progress.completedStops = progress.completedStops.filter(s => s !== stop);
 
-  // Add to reopened (bottom of route)
   if (!progress.reopenedStops.includes(stop)) {
     progress.reopenedStops.push(stop);
   }
@@ -197,7 +197,7 @@ app.get("/admin-data", (req, res) => {
 });
 
 // =============================
-// PRECINCT STATUS (UPDATED LOGIC)
+// PRECINCT STATUS WITH ETA
 // =============================
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
@@ -212,6 +212,7 @@ app.get("/assignment/:precinct", (req, res) => {
 
   let statusCode = "not_started";
   let stopsBeforeYou = null;
+  let etaMinutes = null;
 
   if (progress && typeof progress.currentStop === "number") {
     const driverRoute = assignments
@@ -229,6 +230,7 @@ app.get("/assignment/:precinct", (req, res) => {
     if (isCompleted && !isReopened) {
       statusCode = "completed_or_return";
       stopsBeforeYou = 0;
+      etaMinutes = null;
     } else {
       const normalTodoStops = driverRoute
         .map(a => Number(a.stopNumber))
@@ -249,9 +251,16 @@ app.get("/assignment/:precinct", (req, res) => {
       if (yourIndex === -1) {
         statusCode = "completed_or_return";
         stopsBeforeYou = 0;
+        etaMinutes = null;
       } else {
         statusCode = "on_the_way";
         stopsBeforeYou = yourIndex;
+
+        if (stopsBeforeYou === 0) {
+          etaMinutes = BASE_TRAVEL_MINUTES;
+        } else {
+          etaMinutes = BASE_TRAVEL_MINUTES + (stopsBeforeYou * MINUTES_PER_STOP);
+        }
       }
     }
   }
@@ -261,7 +270,8 @@ app.get("/assignment/:precinct", (req, res) => {
     driverLocation,
     progress,
     stopsBeforeYou,
-    statusCode
+    statusCode,
+    etaMinutes
   });
 });
 
