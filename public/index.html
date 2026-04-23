@@ -1,36 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <meta charset="utf-8" />
+  <title>All Drivers Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    body { margin: 0; }
+    #map { height: 100vh; width: 100%; }
+  </style>
 </head>
 <body>
+  <div id="map"></div>
 
-<div id="map" style="height:100vh;"></div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map("map").setView([39.95, -75.16], 11);
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script>
-const map = L.map('map').setView([39.95,-75.16],11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let markers = {};
 
-let markers = {};
+    async function load() {
+      const res = await fetch("/locations");
+      const data = await res.json();
 
-async function load(){
-  const res = await fetch('/locations');
-  const data = await res.json();
-
-  data.forEach(d=>{
-    if(markers[d.id]){
-      markers[d.id].setLatLng([d.lat,d.lon]);
-    } else {
-      markers[d.id] = L.marker([d.lat,d.lon]).addTo(map);
+      data.forEach(d => {
+        if (markers[d.id]) {
+          markers[d.id].setLatLng([d.lat, d.lon]);
+        } else {
+          markers[d.id] = L.marker([d.lat, d.lon])
+            .addTo(map)
+            .bindPopup(`Driver: ${d.id}`);
+        }
+      });
     }
-  });
-}
 
-setInterval(load,5000);
-load();
-</script>
-
+    setInterval(load, 5000);
+    load();
+  </script>
 </body>
 </html>
