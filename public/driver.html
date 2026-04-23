@@ -65,11 +65,6 @@
       color: white;
     }
 
-    .warning {
-      background: #ffc107;
-      color: #222;
-    }
-
     .status-box {
       background: #fff;
       border-radius: 14px;
@@ -99,11 +94,6 @@
       background: #eaf2ff;
     }
 
-    .route-item.arrived {
-      border-color: #198754;
-      background: #e8f5ee;
-    }
-
     .current-stop-box {
       font-size: 20px;
       font-weight: bold;
@@ -123,6 +113,17 @@
       font-size: 14px;
       margin-top: 6px;
     }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .button-row button {
+      width: 50%;
+      margin-top: 0;
+    }
   </style>
 </head>
 <body>
@@ -139,14 +140,10 @@
 
       <div id="driverControls" class="hidden">
         <div id="currentStopBox" class="current-stop-box">Current Stop: Not set</div>
-
-        <button class="primary" onclick="startTracking()">Start GPS</button>
-        <button class="warning" onclick="markArrived()">Arrived at This Stop</button>
-        <button class="success" onclick="nextStop()">Next Stop</button>
       </div>
 
       <div class="small">
-        Select your name, load your route, allow location access, and GPS will start automatically.
+        Select your name and load your route. GPS starts automatically. Tap the stop you are heading to.
       </div>
     </div>
 
@@ -226,20 +223,6 @@
       return res.json();
     }
 
-    async function sendArrived(driverId, stop) {
-      const res = await fetch("/driver-arrived", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          driverId,
-          currentStop: Number(stop)
-        })
-      });
-      return res.json();
-    }
-
     async function loadMyRoute() {
       const driverName = getDriverName();
       const routeList = document.getElementById("routeList");
@@ -266,13 +249,12 @@
 
         if (progress && progress.currentStop) {
           currentStop = Number(progress.currentStop);
-        } else if (loadedRoute.length > 0) {
-          currentStop = Number(loadedRoute[0].stopNumber);
-          await sendStop(driverName, currentStop);
+        } else {
+          currentStop = null;
         }
 
         updateCurrentStopBox();
-        renderRoute(progress);
+        renderRoute();
         controls.classList.remove("hidden");
 
         setStatus(
@@ -288,7 +270,7 @@ Starting GPS automatically...`
       }
     }
 
-    function renderRoute(progress) {
+    function renderRoute() {
       const routeList = document.getElementById("routeList");
       routeList.innerHTML = "";
 
@@ -297,14 +279,7 @@ Starting GPS automatically...`
         div.className = "route-item";
 
         const isActive = currentStop && Number(stop.stopNumber) === Number(currentStop);
-        const isArrived =
-          progress &&
-          progress.arrived === true &&
-          Number(progress.arrivedStop) === Number(stop.stopNumber);
-
-        if (isArrived) {
-          div.classList.add("arrived");
-        } else if (isActive) {
+        if (isActive) {
           div.classList.add("active");
         }
 
@@ -315,8 +290,10 @@ Starting GPS automatically...`
           <div><strong>Precinct:</strong> ${stop.precinct}</div>
           <div><strong>Location:</strong> ${stop.placeName}</div>
           <div><strong>Address:</strong> ${stop.streetAddress}</div>
-          <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
-          <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
+          <div class="button-row">
+            <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
+            <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
+          </div>
         `;
 
         routeList.appendChild(div);
@@ -339,10 +316,10 @@ Starting GPS automatically...`
 
         setStatus(
           `Driver: ${driverName}
-Now working on Stop: ${currentStop}`
+Now heading to Stop: ${currentStop}`
         );
 
-        await loadMyRoute();
+        renderRoute();
       } catch (err) {
         setStatus("Error selecting stop.");
       }
@@ -367,11 +344,8 @@ Now working on Stop: ${currentStop}`
       }
 
       if (watchId !== null) {
-        setStatus("GPS already running.");
         return;
       }
-
-      setStatus(`Starting GPS for ${driverName}...`);
 
       watchId = navigator.geolocation.watchPosition(
         async (position) => {
@@ -385,7 +359,7 @@ Now working on Stop: ${currentStop}`
               `Tracking Active
 
 Driver: ${driverName}
-Current Stop: ${currentStop || "Not set"}
+Current Stop: ${currentStop || "Not selected yet"}
 Latitude: ${lat}
 Longitude: ${lon}
 Updated: ${new Date().toLocaleTimeString()}`
@@ -403,63 +377,6 @@ Updated: ${new Date().toLocaleTimeString()}`
           timeout: 10000
         }
       );
-    }
-
-    async function markArrived() {
-      const driverName = getDriverName();
-
-      if (!driverName || !currentStop) {
-        setStatus("Load your route first.");
-        return;
-      }
-
-      try {
-        await sendArrived(driverName, currentStop);
-        setStatus(
-          `Driver: ${driverName}
-Current Stop: ${currentStop}
-Status: ARRIVED`
-        );
-        await loadMyRoute();
-      } catch (err) {
-        setStatus("Error recording arrival.");
-      }
-    }
-
-    async function nextStop() {
-      const driverName = getDriverName();
-
-      if (!driverName || !currentStop) {
-        setStatus("Load your route first.");
-        return;
-      }
-
-      const stopNumbers = loadedRoute.map(r => Number(r.stopNumber)).sort((a, b) => a - b);
-      const currentIndex = stopNumbers.indexOf(Number(currentStop));
-
-      if (currentIndex === -1) {
-        setStatus("Current stop not found in route.");
-        return;
-      }
-
-      if (currentIndex === stopNumbers.length - 1) {
-        setStatus("You are already at the last stop.");
-        return;
-      }
-
-      currentStop = stopNumbers[currentIndex + 1];
-      updateCurrentStopBox();
-
-      try {
-        await sendStop(driverName, currentStop);
-        setStatus(
-          `Driver: ${driverName}
-Moved to Stop: ${currentStop}`
-        );
-        await loadMyRoute();
-      } catch (err) {
-        setStatus("Error moving to next stop.");
-      }
     }
 
     loadDriverList();
