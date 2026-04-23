@@ -74,7 +74,7 @@
 
     async function loadPrecinct() {
       try {
-        const res = await fetch(`/assignment/${precinct}`);
+        const res = await fetch(`/assignment/${encodeURIComponent(precinct)}`);
 
         if (!res.ok) {
           throw new Error("Precinct not found");
