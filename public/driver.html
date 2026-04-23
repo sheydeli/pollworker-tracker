@@ -123,10 +123,9 @@
       background: #e8f5ee;
     }
 
-    .route-item button {
-      margin-top: 10px;
-      font-size: 15px;
-      padding: 10px;
+    .route-item.waiting {
+      border-color: #ffc107;
+      background: #fff8e1;
     }
 
     .small {
@@ -142,7 +141,9 @@
 
     <div class="card">
       <label for="id">Driver Name</label>
-      <input id="id" placeholder="Driver Name" />
+      <input id="id" placeholder="Enter your full name" />
+
+      <button class="primary" onclick="loadMyRoute()">Load My Route</button>
 
       <label for="stop">Current Stop Number</label>
       <input id="stop" placeholder="Stop Number" type="number" min="1" />
@@ -163,16 +164,15 @@
       </div>
 
       <div class="small">
-        Example link:<br>
-        <strong>/driver.html?id=Nadirah%20Muhammad</strong>
+        Enter your driver name exactly as it appears in assignments.json.
       </div>
     </div>
 
-    <div id="status" class="status-box">Waiting to start...</div>
+    <div id="status" class="status-box">Enter your name and tap "Load My Route".</div>
 
     <div class="card">
       <div class="route-title">Assigned Route</div>
-      <div id="routeList">Loading route...</div>
+      <div id="routeList">No route loaded yet.</div>
     </div>
   </div>
 
@@ -241,12 +241,87 @@
       return Number(document.getElementById("stop").value);
     }
 
+    async function loadMyRoute() {
+      const driverName = getDriverName();
+      const routeList = document.getElementById("routeList");
+
+      if (!driverName) {
+        setStatus("Please enter your driver name.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/driver-route/${encodeURIComponent(driverName)}`);
+
+        if (!res.ok) {
+          routeList.innerHTML = "No route found for that driver name.";
+          setStatus("No route found. Check spelling and try again.");
+          return;
+        }
+
+        const data = await res.json();
+        const route = data.route;
+        const progress = data.progress;
+
+        routeList.innerHTML = "";
+
+        if (route.length > 0) {
+          const firstStop = progress?.currentStop || route[0].stopNumber;
+          document.getElementById("stop").value = firstStop;
+        }
+
+        route.forEach(stop => {
+          const div = document.createElement("div");
+          div.className = "route-item";
+
+          const isActive =
+            progress &&
+            Number(progress.currentStop) === Number(stop.stopNumber);
+
+          const isArrived =
+            progress &&
+            progress.arrived === true &&
+            Number(progress.arrivedStop) === Number(stop.stopNumber);
+
+          const isWaiting =
+            progress &&
+            Number(stop.stopNumber) > Number(progress.currentStop);
+
+          if (isArrived) {
+            div.classList.add("arrived");
+          } else if (isActive) {
+            div.classList.add("active");
+          } else if (isWaiting) {
+            div.classList.add("waiting");
+          }
+
+          div.innerHTML = `
+            <div><strong>Stop ${stop.stopNumber}</strong></div>
+            <div><strong>Precinct:</strong> ${stop.precinct}</div>
+            <div><strong>Location:</strong> ${stop.placeName}</div>
+            <div><strong>Address:</strong> ${stop.streetAddress}</div>
+            <button class="primary" onclick="jumpToStop(${stop.stopNumber})">Go To This Stop</button>
+          `;
+
+          routeList.appendChild(div);
+        });
+
+        setStatus(
+          `Route loaded for ${driverName}
+Total Stops: ${route.length}`
+        );
+      } catch (err) {
+        routeList.innerHTML = "Error loading route.";
+        setStatus("Error loading route.");
+      }
+    }
+
     async function updateStop() {
       const driverName = getDriverName();
       const stopNumber = getStopNumber();
 
       if (!driverName) {
-        setStatus("Please enter a driver name.");
+        setStatus("Please enter your driver name.");
         return;
       }
 
@@ -262,7 +337,7 @@
 Current Stop: ${stopNumber}
 Stop updated successfully.`
         );
-        loadRoute();
+        loadMyRoute();
       } catch (err) {
         setStatus("Error updating stop.");
       }
@@ -292,7 +367,7 @@ Stop updated successfully.`
 Current Stop: ${stopNumber}
 Status: ARRIVED`
         );
-        loadRoute();
+        loadMyRoute();
       } catch (err) {
         setStatus("Error recording arrival.");
       }
@@ -312,71 +387,9 @@ Status: ARRIVED`
           `Driver: ${driverName}
 Status: LEFT STOP`
         );
-        loadRoute();
+        loadMyRoute();
       } catch (err) {
         setStatus("Error recording departure.");
-      }
-    }
-
-    function selectStop(stopNumber) {
-      document.getElementById("stop").value = stopNumber;
-      updateStop();
-    }
-
-    async function loadRoute() {
-      const driverName = getDriverName();
-      const routeList = document.getElementById("routeList");
-
-      if (!driverName) {
-        routeList.innerHTML = "Enter a driver name to load the route.";
-        return;
-      }
-
-      try {
-        const res = await fetch(`/driver-route/${encodeURIComponent(driverName)}`);
-
-        if (!res.ok) {
-          routeList.innerHTML = "No route found for this driver.";
-          return;
-        }
-
-        const data = await res.json();
-        const route = data.route;
-        const progress = data.progress;
-
-        routeList.innerHTML = "";
-
-        route.forEach(stop => {
-          const div = document.createElement("div");
-          div.className = "route-item";
-
-          const isActive =
-            progress &&
-            Number(progress.currentStop) === Number(stop.stopNumber);
-
-          const isArrived =
-            progress &&
-            progress.arrived === true &&
-            Number(progress.arrivedStop) === Number(stop.stopNumber);
-
-          if (isArrived) {
-            div.classList.add("arrived");
-          } else if (isActive) {
-            div.classList.add("active");
-          }
-
-          div.innerHTML = `
-            <div><strong>Stop ${stop.stopNumber}</strong></div>
-            <div><strong>Precinct:</strong> ${stop.precinct}</div>
-            <div><strong>Location:</strong> ${stop.placeName}</div>
-            <div><strong>Address:</strong> ${stop.streetAddress}</div>
-            <button class="primary" onclick="jumpToStop(${stop.stopNumber})">Go To This Stop</button>
-          `;
-
-          routeList.appendChild(div);
-        });
-      } catch (err) {
-        routeList.innerHTML = "Error loading route.";
       }
     }
 
@@ -389,7 +402,7 @@ Status: LEFT STOP`
       const driverName = getDriverName();
 
       if (!driverName) {
-        setStatus("Please enter a driver name.");
+        setStatus("Please enter your driver name.");
         return;
       }
 
@@ -440,15 +453,6 @@ Updated: ${new Date().toLocaleTimeString()}`
       }
 
       setStatus("GPS tracking stopped.");
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    const driverNameFromUrl = params.get("id");
-
-    if (driverNameFromUrl) {
-      document.getElementById("id").value = driverNameFromUrl;
-      setStatus(`Driver loaded from link: ${driverNameFromUrl}`);
-      loadRoute();
     }
   </script>
 </body>
