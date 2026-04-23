@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Login</title>
+</head>
+<body>
+
+<h2>Pollworker Login</h2>
+
+<input id="username" placeholder="Username">
+<input id="password" placeholder="Precinct Number">
+
+<button onclick="login()">Login</button>
+
+<div id="error"></div>
+
+<script>
+async function login() {
+  const u = username.value;
+  const p = password.value;
+
+  if (u !== "pollworker") {
+    error.innerText = "Invalid username";
+    return;
+  }
+
+  const res = await fetch(`/assignment/${p}`);
+
+  if (!res.ok) {
+    error.innerText = "Invalid precinct";
+    return;
+  }
+
+  window.location.href = `/precinct.html?precinct=${p}`;
+}
+</script>
+
+</body>
+</html>
