@@ -131,11 +131,18 @@
       return new Date(isoString).toLocaleString();
     }
 
-    function getStatusText(progress, stopsBeforeYou, driverLocation) {
+    function getStatusText(progress, stopsBeforeYou, driverLocation, driverAtYourStop) {
       if (!driverLocation) {
         return {
           text: "Waiting for driver location",
           className: "status-blue"
+        };
+      }
+
+      if (driverAtYourStop) {
+        return {
+          text: "Driver has arrived at your stop",
+          className: "status-green"
         };
       }
 
@@ -148,27 +155,27 @@
 
       if (stopsBeforeYou === 0) {
         return {
-          text: "Your driver is at or past your stop",
+          text: "Driver is at or past your stop",
           className: "status-green"
         };
       }
 
       if (stopsBeforeYou === 1) {
         return {
-          text: "Your driver is 1 stop away",
+          text: "Driver is 1 stop away",
           className: "status-green"
         };
       }
 
       if (stopsBeforeYou <= 3) {
         return {
-          text: `Your driver is ${stopsBeforeYou} stops away`,
+          text: `Driver is ${stopsBeforeYou} stops away`,
           className: "status-yellow"
         };
       }
 
       return {
-        text: `Your driver is ${stopsBeforeYou} stops away`,
+        text: `Driver is ${stopsBeforeYou} stops away`,
         className: "status-red"
       };
     }
@@ -186,8 +193,9 @@
         const driverLocation = data.driverLocation;
         const progress = data.progress;
         const stopsBeforeYou = data.stopsBeforeYou;
+        const driverAtYourStop = data.driverAtYourStop;
 
-        const status = getStatusText(progress, stopsBeforeYou, driverLocation);
+        const status = getStatusText(progress, stopsBeforeYou, driverLocation, driverAtYourStop);
         statusBanner.className = `status-banner ${status.className}`;
         statusBanner.innerText = status.text;
 
@@ -208,6 +216,12 @@
         } else {
           html += `
             <div><span class="label">Driver Current Stop:</span> Not started yet</div>
+          `;
+        }
+
+        if (driverAtYourStop) {
+          html += `
+            <div><span class="label">Arrival Status:</span> Driver has arrived</div>
           `;
         }
 
