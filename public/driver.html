@@ -75,7 +75,7 @@
       font-size: 15px;
     }
 
-    .route-title {
+    .section-title {
       font-size: 20px;
       font-weight: bold;
       margin-bottom: 10px;
@@ -89,9 +89,15 @@
       background: #fff;
     }
 
-    .route-item.active {
+    .route-item.current {
       border-color: #0b6efd;
       background: #eaf2ff;
+    }
+
+    .route-item.finished {
+      border-color: #198754;
+      background: #e8f5ee;
+      opacity: 0.9;
     }
 
     .current-stop-box {
@@ -124,6 +130,12 @@
       width: 50%;
       margin-top: 0;
     }
+
+    .empty {
+      color: #666;
+      font-style: italic;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -150,8 +162,18 @@
     <div id="status" class="status-box">Loading driver list...</div>
 
     <div class="card">
-      <div class="route-title">Assigned Route</div>
-      <div id="routeList">No route loaded yet.</div>
+      <div class="section-title">Current Stop</div>
+      <div id="currentStopSection" class="empty">No current stop selected yet.</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">To Do Stops</div>
+      <div id="todoSection">No route loaded yet.</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Finished Stops</div>
+      <div id="finishedSection" class="empty">No finished stops yet.</div>
     </div>
   </div>
 
@@ -159,6 +181,7 @@
     let watchId = null;
     let loadedRoute = [];
     let currentStop = null;
+    let completedStops = [];
 
     function setStatus(message) {
       document.getElementById("status").innerText = message;
@@ -225,7 +248,6 @@
 
     async function loadMyRoute() {
       const driverName = getDriverName();
-      const routeList = document.getElementById("routeList");
       const controls = document.getElementById("driverControls");
 
       if (!driverName) {
@@ -237,7 +259,7 @@
         const res = await fetch(`/driver-route/${encodeURIComponent(driverName)}`);
 
         if (!res.ok) {
-          routeList.innerHTML = "No route found for that driver.";
+          document.getElementById("todoSection").innerHTML = "No route found for that driver.";
           setStatus("No route found.");
           controls.classList.add("hidden");
           return;
@@ -253,6 +275,10 @@
           currentStop = null;
         }
 
+        completedStops = progress && Array.isArray(progress.completedStops)
+          ? progress.completedStops.map(Number)
+          : [];
+
         updateCurrentStopBox();
         renderRoute();
         controls.classList.remove("hidden");
@@ -265,39 +291,89 @@ Starting GPS automatically...`
 
         startTracking();
       } catch (err) {
-        routeList.innerHTML = "Error loading route.";
+        document.getElementById("todoSection").innerHTML = "Error loading route.";
         setStatus("Error loading route.");
       }
     }
 
     function renderRoute() {
-      const routeList = document.getElementById("routeList");
-      routeList.innerHTML = "";
+      const currentSection = document.getElementById("currentStopSection");
+      const todoSection = document.getElementById("todoSection");
+      const finishedSection = document.getElementById("finishedSection");
 
-      loadedRoute.forEach(stop => {
+      currentSection.innerHTML = "";
+      todoSection.innerHTML = "";
+      finishedSection.innerHTML = "";
+
+      const currentItem = loadedRoute.find(stop => Number(stop.stopNumber) === Number(currentStop));
+      const todoItems = loadedRoute.filter(
+        stop =>
+          Number(stop.stopNumber) !== Number(currentStop) &&
+          !completedStops.includes(Number(stop.stopNumber))
+      );
+      const finishedItems = loadedRoute.filter(
+        stop => completedStops.includes(Number(stop.stopNumber))
+      );
+
+      if (currentItem) {
         const div = document.createElement("div");
-        div.className = "route-item";
+        div.className = "route-item current";
 
-        const isActive = currentStop && Number(stop.stopNumber) === Number(currentStop);
-        if (isActive) {
-          div.classList.add("active");
-        }
-
-        const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
+        const encodedAddress = encodeURIComponent(`${currentItem.streetAddress}, Philadelphia, PA`);
 
         div.innerHTML = `
-          <div><strong>Stop ${stop.stopNumber}</strong></div>
-          <div><strong>Precinct:</strong> ${stop.precinct}</div>
-          <div><strong>Location:</strong> ${stop.placeName}</div>
-          <div><strong>Address:</strong> ${stop.streetAddress}</div>
+          <div><strong>Stop ${currentItem.stopNumber}</strong></div>
+          <div><strong>Precinct:</strong> ${currentItem.precinct}</div>
+          <div><strong>Location:</strong> ${currentItem.placeName}</div>
+          <div><strong>Address:</strong> ${currentItem.streetAddress}</div>
           <div class="button-row">
-            <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
+            <button class="primary" onclick="selectStop(${currentItem.stopNumber})">Start This Stop</button>
             <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
           </div>
         `;
+        currentSection.appendChild(div);
+      } else {
+        currentSection.innerHTML = `<div class="empty">No current stop selected yet.</div>`;
+      }
 
-        routeList.appendChild(div);
-      });
+      if (todoItems.length) {
+        todoItems.forEach(stop => {
+          const div = document.createElement("div");
+          div.className = "route-item";
+
+          const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
+
+          div.innerHTML = `
+            <div><strong>Stop ${stop.stopNumber}</strong></div>
+            <div><strong>Precinct:</strong> ${stop.precinct}</div>
+            <div><strong>Location:</strong> ${stop.placeName}</div>
+            <div><strong>Address:</strong> ${stop.streetAddress}</div>
+            <div class="button-row">
+              <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
+              <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
+            </div>
+          `;
+          todoSection.appendChild(div);
+        });
+      } else {
+        todoSection.innerHTML = `<div class="empty">No remaining stops.</div>`;
+      }
+
+      if (finishedItems.length) {
+        finishedItems.forEach(stop => {
+          const div = document.createElement("div");
+          div.className = "route-item finished";
+          div.innerHTML = `
+            <div><strong>Stop ${stop.stopNumber}</strong></div>
+            <div><strong>Precinct:</strong> ${stop.precinct}</div>
+            <div><strong>Location:</strong> ${stop.placeName}</div>
+            <div><strong>Address:</strong> ${stop.streetAddress}</div>
+          `;
+          finishedSection.appendChild(div);
+        });
+      } else {
+        finishedSection.innerHTML = `<div class="empty">No finished stops yet.</div>`;
+      }
     }
 
     async function selectStop(stopNumber) {
@@ -319,7 +395,7 @@ Starting GPS automatically...`
 Now heading to Stop: ${currentStop}`
         );
 
-        renderRoute();
+        await loadMyRoute();
       } catch (err) {
         setStatus("Error selecting stop.");
       }
