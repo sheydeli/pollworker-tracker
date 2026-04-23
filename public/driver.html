@@ -4,353 +4,92 @@
   <meta charset="utf-8" />
   <title>Driver Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; color: #222; }
-    .container { max-width: 720px; margin: 0 auto; padding: 16px; }
-    h2 { margin: 0 0 16px 0; font-size: 28px; text-align: center; }
-    .card { background: white; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    label { display: block; font-weight: bold; margin-top: 10px; margin-bottom: 6px; }
-    select, button { width: 100%; box-sizing: border-box; font-size: 18px; padding: 14px; border-radius: 10px; border: 1px solid #ccc; margin-top: 10px; }
-    button { border: none; cursor: pointer; font-weight: bold; }
-    .primary { background: #0b6efd; color: white; }
-    .success { background: #198754; color: white; }
-    .secondary { background: #6c757d; color: white; }
-    .status-box { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); white-space: pre-line; line-height: 1.5; font-size: 15px; }
-    .section-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
-    .route-item { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: #fff; }
-    .route-item.current { border-color: #0b6efd; background: #eaf2ff; }
-    .route-item.finished { border-color: #198754; background: #e8f5ee; opacity: 0.9; }
-    .current-stop-box { font-size: 20px; font-weight: bold; padding: 14px; border-radius: 10px; background: #f1f1f1; margin-top: 12px; text-align: center; }
-    .hidden { display: none; }
-    .small { color: #666; font-size: 14px; margin-top: 6px; }
-    .button-row { display: flex; gap: 10px; margin-top: 10px; }
-    .button-row button { width: 50%; margin-top: 0; }
-    .empty { color: #666; font-style: italic; margin-bottom: 10px; }
-  </style>
 </head>
 <body>
-  <div class="container">
-    <h2>Driver Tracker</h2>
+  <h2>Driver Tracker</h2>
 
-    <div class="card">
-      <label for="driverSelect">Select Your Name</label>
-      <select id="driverSelect">
-        <option value="">Loading drivers...</option>
-      </select>
+  <select id="driverSelect"></select>
+  <button onclick="loadMyRoute()">Load My Route</button>
+  <button onclick="resetDriver()">Reset Route</button>
 
-      <button class="primary" onclick="loadMyRoute()">Load My Route</button>
+  <div id="status"></div>
+  <div id="route"></div>
 
-      <div id="driverControls" class="hidden">
-        <div id="currentStopBox" class="current-stop-box">Current Stop: Not set</div>
-      </div>
+<script>
+let currentStop = null;
 
-      <div class="small">
-        Select your name and load your route. GPS starts automatically. Tap the stop you are heading to.
-      </div>
+function getDriverName() {
+  return document.getElementById("driverSelect").value;
+}
+
+async function loadDrivers() {
+  const res = await fetch("/drivers");
+  const drivers = await res.json();
+
+  const select = document.getElementById("driverSelect");
+  select.innerHTML = drivers.map(d => `<option value="${d}">${d}</option>`).join("");
+}
+
+async function loadMyRoute() {
+  const driver = getDriverName();
+  const res = await fetch(`/driver-route/${driver}`);
+  const data = await res.json();
+
+  currentStop = data.progress.currentStop;
+
+  const routeHTML = data.route.map(stop => `
+    <div>
+      Stop ${stop.stopNumber} - ${stop.placeName}
+      <button onclick="selectStop(${stop.stopNumber})">Start</button>
     </div>
+  `).join("");
 
-    <div id="status" class="status-box">Loading driver list...</div>
+  document.getElementById("route").innerHTML = routeHTML;
 
-    <div class="card">
-      <div class="section-title">Current Stop</div>
-      <div id="currentStopSection" class="empty">No current stop selected yet.</div>
-    </div>
+  startTracking();
+}
 
-    <div class="card">
-      <div class="section-title">To Do Stops</div>
-      <div id="todoSection">No route loaded yet.</div>
-    </div>
+async function selectStop(stop) {
+  const driver = getDriverName();
 
-    <div class="card">
-      <div class="section-title">Finished Stops</div>
-      <div id="finishedSection" class="empty">No finished stops yet.</div>
-    </div>
-  </div>
+  await fetch("/update-driver-stop", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ driverId: driver, currentStop: stop })
+  });
 
-  <script>
-    let watchId = null;
-    let loadedRoute = [];
-    let currentStop = null;
-    let completedStops = [];
-    let reopenedStops = [];
+  loadMyRoute();
+}
 
-    function setStatus(message) {
-      document.getElementById("status").innerText = message;
-    }
+async function resetDriver() {
+  const driver = getDriverName();
 
-    function updateCurrentStopBox() {
-      const box = document.getElementById("currentStopBox");
-      box.innerText = currentStop ? `Current Stop: ${currentStop}` : "Current Stop: Not set";
-    }
+  await fetch("/reset-driver", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ driverId: driver })
+  });
 
-    async function loadDriverList() {
-      try {
-        const res = await fetch("/drivers");
-        const drivers = await res.json();
+  loadMyRoute();
+}
 
-        const select = document.getElementById("driverSelect");
-        select.innerHTML = '<option value="">Select your name</option>';
+function startTracking() {
+  const driver = getDriverName();
 
-        drivers.forEach(driver => {
-          const option = document.createElement("option");
-          option.value = driver;
-          option.textContent = driver;
-          select.appendChild(option);
-        });
+  navigator.geolocation.watchPosition(async pos => {
+    await fetch("/update-location", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        id: driver,
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude
+      })
+    });
+  });
+}
 
-        setStatus("Select your name and tap 'Load My Route'.");
-      } catch (err) {
-        setStatus("Unable to load driver list.");
-      }
-    }
-
-    function getDriverName() {
-      return document.getElementById("driverSelect").value;
-    }
-
-    async function sendLocation(id, lat, lon) {
-      const res = await fetch("/update-location", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, lat, lon })
-      });
-      return res.json();
-    }
-
-    async function sendStop(driverId, stop) {
-      const res = await fetch("/update-driver-stop", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driverId, currentStop: Number(stop) })
-      });
-      return res.json();
-    }
-
-    async function reopenStop(stopNumber) {
-      const driverName = getDriverName();
-
-      if (!driverName) {
-        setStatus("Select your name first.");
-        return;
-      }
-
-      try {
-        await fetch("/reopen-stop", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ driverId: driverName, stopNumber: Number(stopNumber) })
-        });
-
-        setStatus(`Stop ${stopNumber} moved back to the end of To Do.`);
-        await loadMyRoute();
-      } catch (err) {
-        setStatus("Error reopening stop.");
-      }
-    }
-
-    async function loadMyRoute() {
-      const driverName = getDriverName();
-      const controls = document.getElementById("driverControls");
-
-      if (!driverName) {
-        setStatus("Please select your name.");
-        return;
-      }
-
-      try {
-        const res = await fetch(`/driver-route/${encodeURIComponent(driverName)}`);
-
-        if (!res.ok) {
-          document.getElementById("todoSection").innerHTML = "No route found for that driver.";
-          setStatus("No route found.");
-          controls.classList.add("hidden");
-          return;
-        }
-
-        const data = await res.json();
-        loadedRoute = data.route;
-        const progress = data.progress || {};
-
-        currentStop = progress.currentStop ? Number(progress.currentStop) : null;
-        completedStops = Array.isArray(progress.completedStops) ? progress.completedStops.map(Number) : [];
-        reopenedStops = Array.isArray(progress.reopenedStops) ? progress.reopenedStops.map(Number) : [];
-
-        updateCurrentStopBox();
-        renderRoute();
-        controls.classList.remove("hidden");
-
-        setStatus(
-          `Route loaded for ${driverName}
-Total Stops: ${loadedRoute.length}
-Starting GPS automatically...`
-        );
-
-        startTracking();
-      } catch (err) {
-        document.getElementById("todoSection").innerHTML = "Error loading route.";
-        setStatus("Error loading route.");
-      }
-    }
-
-    function makeStopCard(stop, cssClass, showActions, showReopen) {
-      const div = document.createElement("div");
-      div.className = `route-item ${cssClass || ""}`;
-
-      const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
-
-      div.innerHTML = `
-        <div><strong>Stop ${stop.stopNumber}</strong></div>
-        <div><strong>Precinct:</strong> ${stop.precinct}</div>
-        <div><strong>Location:</strong> ${stop.placeName}</div>
-        <div><strong>Address:</strong> ${stop.streetAddress}</div>
-      `;
-
-      if (showActions) {
-        div.innerHTML += `
-          <div class="button-row">
-            <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
-            <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
-          </div>
-        `;
-      }
-
-      if (showReopen) {
-        div.innerHTML += `
-          <button class="secondary" onclick="reopenStop(${stop.stopNumber})">Reopen Stop</button>
-        `;
-      }
-
-      return div;
-    }
-
-    function renderRoute() {
-      const currentSection = document.getElementById("currentStopSection");
-      const todoSection = document.getElementById("todoSection");
-      const finishedSection = document.getElementById("finishedSection");
-
-      currentSection.innerHTML = "";
-      todoSection.innerHTML = "";
-      finishedSection.innerHTML = "";
-
-      const currentItem = loadedRoute.find(stop => Number(stop.stopNumber) === Number(currentStop));
-
-      const finishedItems = loadedRoute.filter(stop =>
-        completedStops.includes(Number(stop.stopNumber))
-      );
-
-      const todoItemsNormal = loadedRoute.filter(stop =>
-        Number(stop.stopNumber) !== Number(currentStop) &&
-        !completedStops.includes(Number(stop.stopNumber)) &&
-        !reopenedStops.includes(Number(stop.stopNumber))
-      );
-
-      const todoItemsReopened = reopenedStops
-        .map(stopNumber => loadedRoute.find(stop => Number(stop.stopNumber) === Number(stopNumber)))
-        .filter(Boolean);
-
-      const todoItems = [...todoItemsNormal, ...todoItemsReopened];
-
-      if (currentItem) {
-        currentSection.appendChild(makeStopCard(currentItem, "current", true, false));
-      } else {
-        currentSection.innerHTML = `<div class="empty">No current stop selected yet.</div>`;
-      }
-
-      if (todoItems.length) {
-        todoItems.forEach(stop => {
-          todoSection.appendChild(makeStopCard(stop, "", true, false));
-        });
-      } else {
-        todoSection.innerHTML = `<div class="empty">No remaining stops.</div>`;
-      }
-
-      if (finishedItems.length) {
-        finishedItems.forEach(stop => {
-          finishedSection.appendChild(makeStopCard(stop, "finished", false, true));
-        });
-      } else {
-        finishedSection.innerHTML = `<div class="empty">No finished stops yet.</div>`;
-      }
-    }
-
-    async function selectStop(stopNumber) {
-      const driverName = getDriverName();
-
-      if (!driverName) {
-        setStatus("Select your name first.");
-        return;
-      }
-
-      currentStop = stopNumber;
-      updateCurrentStopBox();
-
-      try {
-        await sendStop(driverName, currentStop);
-
-        setStatus(
-          `Driver: ${driverName}
-Now heading to Stop: ${currentStop}`
-        );
-
-        await loadMyRoute();
-      } catch (err) {
-        setStatus("Error selecting stop.");
-      }
-    }
-
-    function navigateTo(encodedAddress) {
-      const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-      window.open(url, "_blank");
-    }
-
-    function startTracking() {
-      const driverName = getDriverName();
-
-      if (!driverName) {
-        setStatus("Please select your name.");
-        return;
-      }
-
-      if (!navigator.geolocation) {
-        setStatus("Geolocation is not supported on this device.");
-        return;
-      }
-
-      if (watchId !== null) return;
-
-      watchId = navigator.geolocation.watchPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-
-          try {
-            await sendLocation(driverName, lat, lon);
-
-            setStatus(
-              `Tracking Active
-
-Driver: ${driverName}
-Current Stop: ${currentStop || "Not selected yet"}
-Latitude: ${lat}
-Longitude: ${lon}
-Updated: ${new Date().toLocaleTimeString()}`
-            );
-          } catch (err) {
-            setStatus("Error sending GPS location.");
-          }
-        },
-        (error) => {
-          setStatus(`GPS error: ${error.message}`);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 10000
-        }
-      );
-    }
-
-    loadDriverList();
-  </script>
+loadDrivers();
+</script>
 </body>
 </html>
