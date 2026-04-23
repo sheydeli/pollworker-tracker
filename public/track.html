@@ -1,31 +1,46 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <meta charset="utf-8" />
+  <title>Single Driver Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body { margin: 0; }
+    #map { height: 100vh; width: 100%; }
+  </style>
+</head>
 <body>
+  <div id="map"></div>
 
-<div id="map" style="height:100vh;"></div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get("id");
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script>
-const id=new URLSearchParams(location.search).get("id");
+    const map = L.map("map").setView([39.95, -75.16], 12);
 
-const map=L.map('map').setView([39.95,-75.16],12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
 
-let marker;
+    let marker = null;
 
-async function load(){
- const res=await fetch(`/locations/${id}`);
- const d=await res.json();
+    async function load() {
+      const res = await fetch(`/locations/${encodeURIComponent(id)}`);
 
- if(!marker){
-  marker=L.marker([d.lat,d.lon]).addTo(map);
- } else {
-  marker.setLatLng([d.lat,d.lon]);
- }
-}
+      if (!res.ok) return;
 
-setInterval(load,5000);
-</script>
+      const d = await res.json();
 
+      if (!marker) {
+        marker = L.marker([d.lat, d.lon]).addTo(map);
+      } else {
+        marker.setLatLng([d.lat, d.lon]);
+      }
+    }
+
+    setInterval(load, 5000);
+    load();
+  </script>
 </body>
 </html>
