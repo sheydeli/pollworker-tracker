@@ -1,39 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Login</title>
+  <meta charset="utf-8" />
+  <title>Pollworker Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      max-width: 400px;
+      margin: auto;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    #error {
+      color: red;
+      margin-top: 12px;
+    }
+  </style>
 </head>
 <body>
+  <h2>Pollworker Login</h2>
 
-<h2>Pollworker Login</h2>
+  <input id="username" placeholder="Username" />
+  <input id="password" placeholder="Precinct Number" type="password" />
 
-<input id="username" placeholder="Username">
-<input id="password" placeholder="Precinct Number">
+  <button onclick="login()">Login</button>
 
-<button onclick="login()">Login</button>
+  <div id="error"></div>
 
-<div id="error"></div>
+  <script>
+    async function login() {
+      const username = document.getElementById("username").value.trim();
+      const precinct = document.getElementById("password").value.trim();
+      const error = document.getElementById("error");
 
-<script>
-async function login() {
-  const u = username.value;
-  const p = password.value;
+      error.innerText = "";
 
-  if (u !== "pollworker") {
-    error.innerText = "Invalid username";
-    return;
-  }
+      if (username !== "pollworker") {
+        error.innerText = "Invalid username";
+        return;
+      }
 
-  const res = await fetch(`/assignment/${p}`);
+      if (!precinct) {
+        error.innerText = "Enter precinct number";
+        return;
+      }
 
-  if (!res.ok) {
-    error.innerText = "Invalid precinct";
-    return;
-  }
+      try {
+        const res = await fetch(`/assignment/${encodeURIComponent(precinct)}`);
 
-  window.location.href = `/precinct.html?precinct=${p}`;
-}
-</script>
+        if (!res.ok) {
+          error.innerText = "Invalid precinct";
+          return;
+        }
 
+        window.location.href = `/precinct.html?precinct=${encodeURIComponent(precinct)}`;
+      } catch (err) {
+        error.innerText = "Error connecting";
+      }
+    }
+  </script>
 </body>
 </html>
