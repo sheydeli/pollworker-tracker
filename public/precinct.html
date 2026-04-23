@@ -9,49 +9,108 @@
     body {
       margin: 0;
       font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      color: #222;
     }
 
-    #topbar {
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
       padding: 16px;
-      background: #f5f5f5;
-      border-bottom: 1px solid #ddd;
     }
 
-    #title {
-      font-size: 20px;
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .title {
+      font-size: 26px;
       font-weight: bold;
       margin-bottom: 8px;
     }
 
-    #info {
-      font-size: 14px;
-      line-height: 1.6;
+    .status-banner {
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
+      padding: 16px;
+      border-radius: 14px;
+      margin-bottom: 14px;
+    }
+
+    .status-red {
+      background: #f8d7da;
+      color: #842029;
+    }
+
+    .status-yellow {
+      background: #fff3cd;
+      color: #664d03;
+    }
+
+    .status-green {
+      background: #d1e7dd;
+      color: #0f5132;
+    }
+
+    .status-blue {
+      background: #cfe2ff;
+      color: #084298;
+    }
+
+    .label {
+      font-weight: bold;
     }
 
     #map {
-      height: calc(100vh - 190px);
+      height: 420px;
       width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
     }
 
     .error {
       color: #b00020;
       font-weight: bold;
     }
+
+    .small {
+      color: #666;
+      font-size: 14px;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
-  <div id="topbar">
-    <div id="title">Precinct Tracker</div>
-    <div id="info">Loading...</div>
-  </div>
+  <div class="container">
+    <div class="card">
+      <div class="title">Precinct Tracker</div>
+      <div class="small">Live delivery view for your assigned driver</div>
+    </div>
 
-  <div id="map"></div>
+    <div id="statusBanner" class="status-banner status-blue">
+      Loading status...
+    </div>
+
+    <div class="card" id="info">
+      Loading precinct information...
+    </div>
+
+    <div class="card">
+      <div id="map"></div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     const params = new URLSearchParams(window.location.search);
     const precinct = params.get("precinct");
     const info = document.getElementById("info");
+    const statusBanner = document.getElementById("statusBanner");
 
     if (!precinct) {
       info.innerHTML = '<span class="error">Missing precinct in URL.</span>';
@@ -72,6 +131,48 @@
       return new Date(isoString).toLocaleString();
     }
 
+    function getStatusText(progress, stopsBeforeYou, driverLocation) {
+      if (!driverLocation) {
+        return {
+          text: "Waiting for driver location",
+          className: "status-blue"
+        };
+      }
+
+      if (!progress) {
+        return {
+          text: "Driver has not started the route yet",
+          className: "status-red"
+        };
+      }
+
+      if (stopsBeforeYou === 0) {
+        return {
+          text: "Your driver is at or past your stop",
+          className: "status-green"
+        };
+      }
+
+      if (stopsBeforeYou === 1) {
+        return {
+          text: "Your driver is 1 stop away",
+          className: "status-green"
+        };
+      }
+
+      if (stopsBeforeYou <= 3) {
+        return {
+          text: `Your driver is ${stopsBeforeYou} stops away`,
+          className: "status-yellow"
+        };
+      }
+
+      return {
+        text: `Your driver is ${stopsBeforeYou} stops away`,
+        className: "status-red"
+      };
+    }
+
     async function loadPrecinct() {
       try {
         const res = await fetch(`/assignment/${encodeURIComponent(precinct)}`);
@@ -86,26 +187,38 @@
         const progress = data.progress;
         const stopsBeforeYou = data.stopsBeforeYou;
 
+        const status = getStatusText(progress, stopsBeforeYou, driverLocation);
+        statusBanner.className = `status-banner ${status.className}`;
+        statusBanner.innerText = status.text;
+
         let html = `
-          <strong>Precinct:</strong> ${assignment.precinct}<br>
-          <strong>Assigned Driver:</strong> ${assignment.driverId}<br>
-          <strong>Stop Number:</strong> ${assignment.stopNumber}<br>
-          <strong>Location:</strong> ${assignment.placeName}<br>
-          <strong>Address:</strong> ${assignment.streetAddress}<br>
+          <div><span class="label">Precinct:</span> ${assignment.precinct}</div>
+          <div><span class="label">Assigned Driver:</span> ${assignment.driverId}</div>
+          <div><span class="label">Stop Number:</span> ${assignment.stopNumber}</div>
+          <div><span class="label">Location:</span> ${assignment.placeName}</div>
+          <div><span class="label">Address:</span> ${assignment.streetAddress}</div>
         `;
 
         if (progress) {
-          html += `<strong>Driver Current Stop:</strong> ${progress.currentStop}<br>`;
-          html += `<strong>Stops Before You:</strong> ${stopsBeforeYou}<br>`;
-          html += `<strong>Progress Updated:</strong> ${formatTime(progress.updatedAt)}<br>`;
+          html += `
+            <div><span class="label">Driver Current Stop:</span> ${progress.currentStop}</div>
+            <div><span class="label">Stops Before You:</span> ${stopsBeforeYou}</div>
+            <div><span class="label">Progress Updated:</span> ${formatTime(progress.updatedAt)}</div>
+          `;
         } else {
-          html += `<strong>Driver Current Stop:</strong> Not started yet<br>`;
+          html += `
+            <div><span class="label">Driver Current Stop:</span> Not started yet</div>
+          `;
         }
 
         if (driverLocation) {
-          html += `<strong>Driver Last GPS Update:</strong> ${formatTime(driverLocation.updatedAt)}<br>`;
+          html += `
+            <div><span class="label">Driver Last GPS Update:</span> ${formatTime(driverLocation.updatedAt)}</div>
+          `;
         } else {
-          html += `<strong>Driver GPS:</strong> Waiting for driver location<br>`;
+          html += `
+            <div><span class="label">Driver GPS:</span> Waiting for driver location</div>
+          `;
         }
 
         info.innerHTML = html;
@@ -116,7 +229,7 @@
 
           if (!driverMarker) {
             driverMarker = L.marker([lat, lon]).addTo(map);
-            driverMarker.bindPopup(`Driver ${assignment.driverId}`).openPopup();
+            driverMarker.bindPopup(`Driver: ${assignment.driverId}`).openPopup();
           } else {
             driverMarker.setLatLng([lat, lon]);
           }
@@ -127,6 +240,8 @@
           }
         }
       } catch (err) {
+        statusBanner.className = "status-banner status-red";
+        statusBanner.innerText = "Unable to load precinct data";
         info.innerHTML = `<span class="error">Unable to load precinct data.</span>`;
       }
     }
