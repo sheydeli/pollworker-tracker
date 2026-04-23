@@ -16,6 +16,9 @@ const validPrecincts = new Set(assignments.map(a => a.precinct));
 let locations = [];
 let driverProgress = {};
 
+// =============================
+// UPDATE DRIVER GPS LOCATION
+// =============================
 app.post("/update-location", (req, res) => {
   const { id, lat, lon } = req.body;
 
@@ -37,6 +40,9 @@ app.post("/update-location", (req, res) => {
   res.json({ status: "updated" });
 });
 
+// =============================
+// UPDATE DRIVER CURRENT STOP
+// =============================
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
   const newStop = Number(currentStop);
@@ -64,7 +70,7 @@ app.post("/update-driver-stop", (req, res) => {
   progress.currentStop = newStop;
   progress.updatedAt = new Date().toISOString();
 
-  // If a reopened stop is started again, remove it from reopened list
+  // If a reopened stop is started again, remove it
   progress.reopenedStops = progress.reopenedStops.filter(s => s !== newStop);
 
   res.json({
@@ -75,6 +81,9 @@ app.post("/update-driver-stop", (req, res) => {
   });
 });
 
+// =============================
+// REOPEN STOP (UNDO)
+// =============================
 app.post("/reopen-stop", (req, res) => {
   const { driverId, stopNumber } = req.body;
   const stop = Number(stopNumber);
@@ -90,8 +99,10 @@ app.post("/reopen-stop", (req, res) => {
 
   const progress = driverProgress[driverId];
 
+  // Remove from completed
   progress.completedStops = progress.completedStops.filter(s => s !== stop);
 
+  // Add to reopened (bottom of route)
   if (!progress.reopenedStops.includes(stop)) {
     progress.reopenedStops.push(stop);
   }
@@ -105,10 +116,16 @@ app.post("/reopen-stop", (req, res) => {
   });
 });
 
+// =============================
+// GET ALL LOCATIONS
+// =============================
 app.get("/locations", (req, res) => {
   res.json(locations);
 });
 
+// =============================
+// GET SINGLE DRIVER LOCATION
+// =============================
 app.get("/locations/:id", (req, res) => {
   const location = locations.find(l => l.id === req.params.id);
 
@@ -119,11 +136,17 @@ app.get("/locations/:id", (req, res) => {
   res.json(location);
 });
 
+// =============================
+// GET DRIVER LIST
+// =============================
 app.get("/drivers", (req, res) => {
   const drivers = [...new Set(assignments.map(a => a.driverId))].sort();
   res.json(drivers);
 });
 
+// =============================
+// GET DRIVER ROUTE
+// =============================
 app.get("/driver-route/:driverId", (req, res) => {
   const driverId = String(req.params.driverId);
 
@@ -148,6 +171,9 @@ app.get("/driver-route/:driverId", (req, res) => {
   });
 });
 
+// =============================
+// ADMIN DASHBOARD DATA
+// =============================
 app.get("/admin-data", (req, res) => {
   const uniqueDrivers = [...new Set(assignments.map(a => a.driverId))];
 
@@ -170,6 +196,9 @@ app.get("/admin-data", (req, res) => {
   res.json({ drivers });
 });
 
+// =============================
+// PRECINCT STATUS (UPDATED LOGIC)
+// =============================
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
 
@@ -185,22 +214,45 @@ app.get("/assignment/:precinct", (req, res) => {
   let stopsBeforeYou = null;
 
   if (progress && typeof progress.currentStop === "number") {
+    const driverRoute = assignments
+      .filter(a => a.driverId === assignment.driverId)
+      .sort((a, b) => a.stopNumber - b.stopNumber);
+
     const currentStop = Number(progress.currentStop);
     const yourStop = Number(assignment.stopNumber);
-    const completedStops = progress.completedStops || [];
+    const completedStops = (progress.completedStops || []).map(Number);
+    const reopenedStops = (progress.reopenedStops || []).map(Number);
 
-    if (completedStops.includes(yourStop)) {
+    const isCompleted = completedStops.includes(yourStop);
+    const isReopened = reopenedStops.includes(yourStop);
+
+    if (isCompleted && !isReopened) {
       statusCode = "completed_or_return";
       stopsBeforeYou = 0;
-    } else if (currentStop < yourStop) {
-      statusCode = "on_the_way";
-      stopsBeforeYou = yourStop - currentStop;
-    } else if (currentStop === yourStop) {
-      statusCode = "on_the_way";
-      stopsBeforeYou = 0;
-    } else if (currentStop > yourStop) {
-      statusCode = "completed_or_return";
-      stopsBeforeYou = 0;
+    } else {
+      const normalTodoStops = driverRoute
+        .map(a => Number(a.stopNumber))
+        .filter(stop =>
+          stop !== currentStop &&
+          !completedStops.includes(stop) &&
+          !reopenedStops.includes(stop)
+        );
+
+      const activeRouteOrder = [
+        currentStop,
+        ...normalTodoStops,
+        ...reopenedStops
+      ];
+
+      const yourIndex = activeRouteOrder.indexOf(yourStop);
+
+      if (yourIndex === -1) {
+        statusCode = "completed_or_return";
+        stopsBeforeYou = 0;
+      } else {
+        statusCode = "on_the_way";
+        stopsBeforeYou = yourIndex;
+      }
     }
   }
 
@@ -213,6 +265,9 @@ app.get("/assignment/:precinct", (req, res) => {
   });
 });
 
+// =============================
+// ROOT → LOGIN PAGE
+// =============================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
