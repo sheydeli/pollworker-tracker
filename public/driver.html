@@ -1,50 +1,160 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <meta charset="utf-8" />
+  <title>Driver Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 550px;
+      margin: auto;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
+      white-space: pre-line;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+    .row button {
+      width: 50%;
+    }
+  </style>
+</head>
 <body>
+  <h2>Driver Location Tracker</h2>
 
-<h2>Driver Tracker</h2>
+  <label for="id">Driver Name</label>
+  <input id="id" placeholder="Driver Name" />
 
-<input id="id" placeholder="Driver ID">
-<input id="stop" placeholder="Stop Number">
+  <label for="stop">Current Stop</label>
+  <input id="stop" placeholder="Stop Number" type="number" min="1" />
 
-<button onclick="start()">Start GPS</button>
-<button onclick="next()">Next Stop</button>
+  <button onclick="start()">Start GPS</button>
+  <button onclick="stopTracking()">Stop GPS</button>
 
-<script>
-let watch;
+  <div class="row">
+    <button onclick="updateStop()">Update Stop</button>
+    <button onclick="next()">Next Stop</button>
+  </div>
 
-function sendLocation(id,lat,lon){
- fetch('/update-location',{
-   method:'POST',
-   headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({id,lat,lon})
- });
-}
+  <div id="status">Waiting to start...</div>
 
-function sendStop(id,stop){
- fetch('/update-driver-stop',{
-   method:'POST',
-   headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({driverId:id,currentStop:stop})
- });
-}
+  <script>
+    let watch = null;
 
-function start(){
- const id=document.getElementById('id').value;
+    function setStatus(text) {
+      document.getElementById("status").innerText = text;
+    }
 
- watch=navigator.geolocation.watchPosition(p=>{
-   sendLocation(id,p.coords.latitude,p.coords.longitude);
- });
-}
+    function sendLocation(id, lat, lon) {
+      return fetch("/update-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, lat, lon })
+      });
+    }
 
-function next(){
- const id=document.getElementById('id').value;
- let s=Number(document.getElementById('stop').value);
- s++;
- document.getElementById('stop').value=s;
- sendStop(id,s);
-}
-</script>
+    function sendStop(driverId, stop) {
+      return fetch("/update-driver-stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driverId, currentStop: stop })
+      });
+    }
 
+    function start() {
+      const id = document.getElementById("id").value.trim();
+
+      if (!id) {
+        setStatus("Please enter driver name.");
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        setStatus("Geolocation is not supported.");
+        return;
+      }
+
+      setStatus("Starting GPS tracking...");
+
+      watch = navigator.geolocation.watchPosition(
+        async position => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const stop = document.getElementById("stop").value || "Not set";
+
+          try {
+            await sendLocation(id, lat, lon);
+            setStatus(
+              `Tracking active
+Driver: ${id}
+Current Stop: ${stop}
+Lat: ${lat}
+Lon: ${lon}
+Updated: ${new Date().toLocaleTimeString()}`
+            );
+          } catch (err) {
+            setStatus("Error sending location");
+          }
+        },
+        error => {
+          setStatus("GPS error: " + error.message);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 10000
+        }
+      );
+    }
+
+    async function updateStop() {
+      const id = document.getElementById("id").value.trim();
+      const stop = Number(document.getElementById("stop").value);
+
+      if (!id || !stop) {
+        setStatus("Enter driver name and stop number.");
+        return;
+      }
+
+      await sendStop(id, stop);
+      setStatus(`Updated ${id} to stop ${stop}`);
+    }
+
+    async function next() {
+      const stopInput = document.getElementById("stop");
+      let current = Number(stopInput.value || 0);
+      current += 1;
+      stopInput.value = current;
+      await updateStop();
+    }
+
+    function stopTracking() {
+      if (watch !== null) {
+        navigator.geolocation.clearWatch(watch);
+        watch = null;
+        setStatus("Tracking stopped.");
+      }
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const driverName = params.get("id");
+    if (driverName) {
+      document.getElementById("id").value = driverName;
+      setStatus(`Driver loaded from link: ${driverName}`);
+    }
+  </script>
 </body>
 </html>
