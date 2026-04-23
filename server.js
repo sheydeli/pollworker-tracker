@@ -41,15 +41,36 @@ app.post("/update-location", (req, res) => {
 // UPDATE DRIVER CURRENT STOP
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
+  const newStop = Number(currentStop);
 
   if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {};
+    driverProgress[driverId] = {
+      currentStop: null,
+      completedStops: [],
+      updatedAt: null
+    };
   }
 
-  driverProgress[driverId].currentStop = Number(currentStop);
-  driverProgress[driverId].updatedAt = new Date().toISOString();
+  const progress = driverProgress[driverId];
+  const oldStop = progress.currentStop;
 
-  res.json({ status: "updated" });
+  // If changing to a new stop, move old current stop into completed
+  if (
+    oldStop !== null &&
+    oldStop !== newStop &&
+    !progress.completedStops.includes(oldStop)
+  ) {
+    progress.completedStops.push(oldStop);
+  }
+
+  progress.currentStop = newStop;
+  progress.updatedAt = new Date().toISOString();
+
+  res.json({
+    status: "updated",
+    currentStop: progress.currentStop,
+    completedStops: progress.completedStops
+  });
 });
 
 // GET ALL DRIVER LOCATIONS
@@ -86,7 +107,10 @@ app.get("/driver-route/:driverId", (req, res) => {
     return res.status(404).json({ error: "Driver route not found" });
   }
 
-  const progress = driverProgress[driverId] || null;
+  const progress = driverProgress[driverId] || {
+    currentStop: null,
+    completedStops: []
+  };
 
   res.json({
     driverId,
