@@ -137,32 +137,31 @@
       return new Date(isoString).toLocaleString();
     }
 
-    function getStatus(progress, stopsBeforeYou, driverAtYourStop, hasLocation) {
+    function getStatus(statusCode, stopsBeforeYou, hasLocation) {
       if (!hasLocation) {
         return ["Waiting for driver location", "status-blue"];
       }
 
-      if (driverAtYourStop) {
-        return ["Driver has arrived at your stop", "status-green"];
-      }
-
-      if (!progress) {
+      if (statusCode === "not_started") {
         return ["Driver has not started the route yet", "status-red"];
       }
 
-      if (stopsBeforeYou === 0) {
-        return ["Driver is at or past your stop", "status-green"];
+      if (statusCode === "on_the_way") {
+        if (stopsBeforeYou === 1) {
+          return ["Driver is on the way (1 stop away)", "status-yellow"];
+        }
+        return [`Driver is on the way (${stopsBeforeYou} stops away)`, "status-yellow"];
       }
 
-      if (stopsBeforeYou === 1) {
-        return ["Driver is 1 stop away", "status-green"];
+      if (statusCode === "at_your_stop") {
+        return ["Driver is at your stop", "status-green"];
       }
 
-      if (stopsBeforeYou <= 3) {
-        return [`Driver is ${stopsBeforeYou} stops away`, "status-yellow"];
+      if (statusCode === "past_your_stop") {
+        return ["Driver is past your stop", "status-red"];
       }
 
-      return [`Driver is ${stopsBeforeYou} stops away`, "status-red"];
+      return ["Loading status...", "status-blue"];
     }
 
     async function loadPrecinct() {
@@ -178,12 +177,11 @@
         const driverLocation = data.driverLocation;
         const progress = data.progress;
         const stopsBeforeYou = data.stopsBeforeYou;
-        const driverAtYourStop = data.driverAtYourStop;
+        const statusCode = data.statusCode;
 
         const [statusText, statusClass] = getStatus(
-          progress,
+          statusCode,
           stopsBeforeYou,
-          driverAtYourStop,
           !!driverLocation
         );
 
@@ -207,12 +205,6 @@
         } else {
           html += `
             <div class="info-row"><span class="label">Driver Current Stop:</span> Not started yet</div>
-          `;
-        }
-
-        if (driverAtYourStop) {
-          html += `
-            <div class="info-row"><span class="label">Arrival Status:</span> Driver has arrived</div>
           `;
         }
 
