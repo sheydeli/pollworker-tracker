@@ -16,7 +16,6 @@ const validPrecincts = new Set(assignments.map(a => a.precinct));
 let locations = [];
 let driverProgress = {};
 
-// UPDATE DRIVER GPS LOCATION
 app.post("/update-location", (req, res) => {
   const { id, lat, lon } = req.body;
 
@@ -38,7 +37,6 @@ app.post("/update-location", (req, res) => {
   res.json({ status: "updated" });
 });
 
-// UPDATE DRIVER CURRENT STOP
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
   const newStop = Number(currentStop);
@@ -47,6 +45,7 @@ app.post("/update-driver-stop", (req, res) => {
     driverProgress[driverId] = {
       currentStop: null,
       completedStops: [],
+      reopenedStops: [],
       updatedAt: null
     };
   }
@@ -54,7 +53,6 @@ app.post("/update-driver-stop", (req, res) => {
   const progress = driverProgress[driverId];
   const oldStop = progress.currentStop;
 
-  // If changing to a new stop, move old current stop into completed
   if (
     oldStop !== null &&
     oldStop !== newStop &&
@@ -66,19 +64,51 @@ app.post("/update-driver-stop", (req, res) => {
   progress.currentStop = newStop;
   progress.updatedAt = new Date().toISOString();
 
+  // If a reopened stop is started again, remove it from reopened list
+  progress.reopenedStops = progress.reopenedStops.filter(s => s !== newStop);
+
   res.json({
     status: "updated",
     currentStop: progress.currentStop,
-    completedStops: progress.completedStops
+    completedStops: progress.completedStops,
+    reopenedStops: progress.reopenedStops
   });
 });
 
-// GET ALL DRIVER LOCATIONS
+app.post("/reopen-stop", (req, res) => {
+  const { driverId, stopNumber } = req.body;
+  const stop = Number(stopNumber);
+
+  if (!driverProgress[driverId]) {
+    driverProgress[driverId] = {
+      currentStop: null,
+      completedStops: [],
+      reopenedStops: [],
+      updatedAt: null
+    };
+  }
+
+  const progress = driverProgress[driverId];
+
+  progress.completedStops = progress.completedStops.filter(s => s !== stop);
+
+  if (!progress.reopenedStops.includes(stop)) {
+    progress.reopenedStops.push(stop);
+  }
+
+  progress.updatedAt = new Date().toISOString();
+
+  res.json({
+    status: "reopened",
+    completedStops: progress.completedStops,
+    reopenedStops: progress.reopenedStops
+  });
+});
+
 app.get("/locations", (req, res) => {
   res.json(locations);
 });
 
-// GET SINGLE DRIVER LOCATION
 app.get("/locations/:id", (req, res) => {
   const location = locations.find(l => l.id === req.params.id);
 
@@ -89,13 +119,11 @@ app.get("/locations/:id", (req, res) => {
   res.json(location);
 });
 
-// GET UNIQUE DRIVER LIST
 app.get("/drivers", (req, res) => {
   const drivers = [...new Set(assignments.map(a => a.driverId))].sort();
   res.json(drivers);
 });
 
-// GET DRIVER ROUTE
 app.get("/driver-route/:driverId", (req, res) => {
   const driverId = String(req.params.driverId);
 
@@ -109,7 +137,8 @@ app.get("/driver-route/:driverId", (req, res) => {
 
   const progress = driverProgress[driverId] || {
     currentStop: null,
-    completedStops: []
+    completedStops: [],
+    reopenedStops: []
   };
 
   res.json({
@@ -119,7 +148,6 @@ app.get("/driver-route/:driverId", (req, res) => {
   });
 });
 
-// ADMIN DASHBOARD DATA
 app.get("/admin-data", (req, res) => {
   const uniqueDrivers = [...new Set(assignments.map(a => a.driverId))];
 
@@ -142,7 +170,6 @@ app.get("/admin-data", (req, res) => {
   res.json({ drivers });
 });
 
-// GET PRECINCT ASSIGNMENT + DRIVER INFO
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
 
@@ -160,15 +187,19 @@ app.get("/assignment/:precinct", (req, res) => {
   if (progress && typeof progress.currentStop === "number") {
     const currentStop = Number(progress.currentStop);
     const yourStop = Number(assignment.stopNumber);
+    const completedStops = progress.completedStops || [];
 
-    if (currentStop < yourStop) {
+    if (completedStops.includes(yourStop)) {
+      statusCode = "completed_or_return";
+      stopsBeforeYou = 0;
+    } else if (currentStop < yourStop) {
       statusCode = "on_the_way";
       stopsBeforeYou = yourStop - currentStop;
     } else if (currentStop === yourStop) {
-      statusCode = "at_your_stop";
+      statusCode = "on_the_way";
       stopsBeforeYou = 0;
     } else if (currentStop > yourStop) {
-      statusCode = "past_your_stop";
+      statusCode = "completed_or_return";
       stopsBeforeYou = 0;
     }
   }
@@ -182,7 +213,6 @@ app.get("/assignment/:precinct", (req, res) => {
   });
 });
 
-// ROOT → LOGIN PAGE
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
