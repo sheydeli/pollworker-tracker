@@ -39,13 +39,14 @@
       margin-bottom: 6px;
     }
 
-    input, button {
+    select, button {
       width: 100%;
       box-sizing: border-box;
       font-size: 18px;
       padding: 14px;
       border-radius: 10px;
       border: 1px solid #ccc;
+      margin-top: 10px;
     }
 
     button {
@@ -59,16 +60,6 @@
       color: white;
     }
 
-    .danger {
-      background: #dc3545;
-      color: white;
-    }
-
-    .secondary {
-      background: #6c757d;
-      color: white;
-    }
-
     .success {
       background: #198754;
       color: white;
@@ -77,16 +68,6 @@
     .warning {
       background: #ffc107;
       color: #222;
-    }
-
-    .row {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .row button {
-      width: 50%;
     }
 
     .status-box {
@@ -123,9 +104,18 @@
       background: #e8f5ee;
     }
 
-    .route-item.waiting {
-      border-color: #ffc107;
-      background: #fff8e1;
+    .current-stop-box {
+      font-size: 20px;
+      font-weight: bold;
+      padding: 14px;
+      border-radius: 10px;
+      background: #f1f1f1;
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none;
     }
 
     .small {
@@ -140,35 +130,27 @@
     <h2>Driver Tracker</h2>
 
     <div class="card">
-      <label for="id">Driver Name</label>
-      <input id="id" placeholder="Enter your full name" />
+      <label for="driverSelect">Select Your Name</label>
+      <select id="driverSelect">
+        <option value="">Loading drivers...</option>
+      </select>
 
       <button class="primary" onclick="loadMyRoute()">Load My Route</button>
 
-      <label for="stop">Current Stop Number</label>
-      <input id="stop" placeholder="Stop Number" type="number" min="1" />
+      <div id="driverControls" class="hidden">
+        <div id="currentStopBox" class="current-stop-box">Current Stop: Not set</div>
 
-      <div class="row">
         <button class="primary" onclick="startTracking()">Start GPS</button>
-        <button class="danger" onclick="stopTracking()">Stop GPS</button>
-      </div>
-
-      <div class="row">
-        <button class="secondary" onclick="updateStop()">Update Stop</button>
+        <button class="warning" onclick="markArrived()">Arrived at This Stop</button>
         <button class="success" onclick="nextStop()">Next Stop</button>
       </div>
 
-      <div class="row">
-        <button class="warning" onclick="markArrived()">Arrived</button>
-        <button class="secondary" onclick="markLeft()">Left Stop</button>
-      </div>
-
       <div class="small">
-        Enter your driver name exactly as it appears in assignments.json.
+        Select your name, load your route, start GPS, then use Arrived / Next Stop.
       </div>
     </div>
 
-    <div id="status" class="status-box">Enter your name and tap "Load My Route".</div>
+    <div id="status" class="status-box">Loading driver list...</div>
 
     <div class="card">
       <div class="route-title">Assigned Route</div>
@@ -178,9 +160,45 @@
 
   <script>
     let watchId = null;
+    let loadedRoute = [];
+    let currentStop = null;
 
     function setStatus(message) {
       document.getElementById("status").innerText = message;
+    }
+
+    function updateCurrentStopBox() {
+      const box = document.getElementById("currentStopBox");
+      if (currentStop) {
+        box.innerText = `Current Stop: ${currentStop}`;
+      } else {
+        box.innerText = "Current Stop: Not set";
+      }
+    }
+
+    async function loadDriverList() {
+      try {
+        const res = await fetch("/drivers");
+        const drivers = await res.json();
+
+        const select = document.getElementById("driverSelect");
+        select.innerHTML = '<option value="">Select your name</option>';
+
+        drivers.forEach(driver => {
+          const option = document.createElement("option");
+          option.value = driver;
+          option.textContent = driver;
+          select.appendChild(option);
+        });
+
+        setStatus("Select your name and tap 'Load My Route'.");
+      } catch (err) {
+        setStatus("Unable to load driver list.");
+      }
+    }
+
+    function getDriverName() {
+      return document.getElementById("driverSelect").value;
     }
 
     async function sendLocation(id, lat, lon) {
@@ -222,31 +240,13 @@
       return res.json();
     }
 
-    async function sendLeft(driverId) {
-      const res = await fetch("/driver-left-stop", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ driverId })
-      });
-      return res.json();
-    }
-
-    function getDriverName() {
-      return document.getElementById("id").value.trim();
-    }
-
-    function getStopNumber() {
-      return Number(document.getElementById("stop").value);
-    }
-
     async function loadMyRoute() {
       const driverName = getDriverName();
       const routeList = document.getElementById("routeList");
+      const controls = document.getElementById("driverControls");
 
       if (!driverName) {
-        setStatus("Please enter your driver name.");
+        setStatus("Please select your name.");
         return;
       }
 
@@ -254,61 +254,30 @@
         const res = await fetch(`/driver-route/${encodeURIComponent(driverName)}`);
 
         if (!res.ok) {
-          routeList.innerHTML = "No route found for that driver name.";
-          setStatus("No route found. Check spelling and try again.");
+          routeList.innerHTML = "No route found for that driver.";
+          setStatus("No route found.");
+          controls.classList.add("hidden");
           return;
         }
 
         const data = await res.json();
-        const route = data.route;
+        loadedRoute = data.route;
         const progress = data.progress;
 
-        routeList.innerHTML = "";
-
-        if (route.length > 0) {
-          const firstStop = progress?.currentStop || route[0].stopNumber;
-          document.getElementById("stop").value = firstStop;
+        if (progress && progress.currentStop) {
+          currentStop = Number(progress.currentStop);
+        } else if (loadedRoute.length > 0) {
+          currentStop = Number(loadedRoute[0].stopNumber);
+          await sendStop(driverName, currentStop);
         }
 
-        route.forEach(stop => {
-          const div = document.createElement("div");
-          div.className = "route-item";
-
-          const isActive =
-            progress &&
-            Number(progress.currentStop) === Number(stop.stopNumber);
-
-          const isArrived =
-            progress &&
-            progress.arrived === true &&
-            Number(progress.arrivedStop) === Number(stop.stopNumber);
-
-          const isWaiting =
-            progress &&
-            Number(stop.stopNumber) > Number(progress.currentStop);
-
-          if (isArrived) {
-            div.classList.add("arrived");
-          } else if (isActive) {
-            div.classList.add("active");
-          } else if (isWaiting) {
-            div.classList.add("waiting");
-          }
-
-          div.innerHTML = `
-            <div><strong>Stop ${stop.stopNumber}</strong></div>
-            <div><strong>Precinct:</strong> ${stop.precinct}</div>
-            <div><strong>Location:</strong> ${stop.placeName}</div>
-            <div><strong>Address:</strong> ${stop.streetAddress}</div>
-            <button class="primary" onclick="jumpToStop(${stop.stopNumber})">Go To This Stop</button>
-          `;
-
-          routeList.appendChild(div);
-        });
+        updateCurrentStopBox();
+        renderRoute(progress);
+        controls.classList.remove("hidden");
 
         setStatus(
           `Route loaded for ${driverName}
-Total Stops: ${route.length}`
+Total Stops: ${loadedRoute.length}`
         );
       } catch (err) {
         routeList.innerHTML = "Error loading route.";
@@ -316,93 +285,42 @@ Total Stops: ${route.length}`
       }
     }
 
-    async function updateStop() {
-      const driverName = getDriverName();
-      const stopNumber = getStopNumber();
+    function renderRoute(progress) {
+      const routeList = document.getElementById("routeList");
+      routeList.innerHTML = "";
 
-      if (!driverName) {
-        setStatus("Please enter your driver name.");
-        return;
-      }
+      loadedRoute.forEach(stop => {
+        const div = document.createElement("div");
+        div.className = "route-item";
 
-      if (!stopNumber) {
-        setStatus("Please enter a stop number.");
-        return;
-      }
+        const isActive = currentStop && Number(stop.stopNumber) === Number(currentStop);
+        const isArrived =
+          progress &&
+          progress.arrived === true &&
+          Number(progress.arrivedStop) === Number(stop.stopNumber);
 
-      try {
-        await sendStop(driverName, stopNumber);
-        setStatus(
-          `Driver: ${driverName}
-Current Stop: ${stopNumber}
-Stop updated successfully.`
-        );
-        loadMyRoute();
-      } catch (err) {
-        setStatus("Error updating stop.");
-      }
-    }
+        if (isArrived) {
+          div.classList.add("arrived");
+        } else if (isActive) {
+          div.classList.add("active");
+        }
 
-    async function nextStop() {
-      const stopInput = document.getElementById("stop");
-      let current = Number(stopInput.value || 0);
-      current += 1;
-      stopInput.value = current;
-      await updateStop();
-    }
+        div.innerHTML = `
+          <div><strong>Stop ${stop.stopNumber}</strong></div>
+          <div><strong>Precinct:</strong> ${stop.precinct}</div>
+          <div><strong>Location:</strong> ${stop.placeName}</div>
+          <div><strong>Address:</strong> ${stop.streetAddress}</div>
+        `;
 
-    async function markArrived() {
-      const driverName = getDriverName();
-      const stopNumber = getStopNumber();
-
-      if (!driverName || !stopNumber) {
-        setStatus("Enter driver name and stop number first.");
-        return;
-      }
-
-      try {
-        await sendArrived(driverName, stopNumber);
-        setStatus(
-          `Driver: ${driverName}
-Current Stop: ${stopNumber}
-Status: ARRIVED`
-        );
-        loadMyRoute();
-      } catch (err) {
-        setStatus("Error recording arrival.");
-      }
-    }
-
-    async function markLeft() {
-      const driverName = getDriverName();
-
-      if (!driverName) {
-        setStatus("Enter driver name first.");
-        return;
-      }
-
-      try {
-        await sendLeft(driverName);
-        setStatus(
-          `Driver: ${driverName}
-Status: LEFT STOP`
-        );
-        loadMyRoute();
-      } catch (err) {
-        setStatus("Error recording departure.");
-      }
-    }
-
-    function jumpToStop(stopNumber) {
-      document.getElementById("stop").value = stopNumber;
-      updateStop();
+        routeList.appendChild(div);
+      });
     }
 
     function startTracking() {
       const driverName = getDriverName();
 
       if (!driverName) {
-        setStatus("Please enter your driver name.");
+        setStatus("Please select your name.");
         return;
       }
 
@@ -417,7 +335,6 @@ Status: LEFT STOP`
         async (position) => {
           const lat = position.coords.latitude;
           const lon = position.coords.longitude;
-          const stopNumber = document.getElementById("stop").value || "Not set";
 
           try {
             await sendLocation(driverName, lat, lon);
@@ -426,7 +343,7 @@ Status: LEFT STOP`
               `Tracking Active
 
 Driver: ${driverName}
-Current Stop: ${stopNumber}
+Current Stop: ${currentStop || "Not set"}
 Latitude: ${lat}
 Longitude: ${lon}
 Updated: ${new Date().toLocaleTimeString()}`
@@ -446,14 +363,64 @@ Updated: ${new Date().toLocaleTimeString()}`
       );
     }
 
-    function stopTracking() {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
+    async function markArrived() {
+      const driverName = getDriverName();
+
+      if (!driverName || !currentStop) {
+        setStatus("Load your route first.");
+        return;
       }
 
-      setStatus("GPS tracking stopped.");
+      try {
+        await sendArrived(driverName, currentStop);
+        setStatus(
+          `Driver: ${driverName}
+Current Stop: ${currentStop}
+Status: ARRIVED`
+        );
+        await loadMyRoute();
+      } catch (err) {
+        setStatus("Error recording arrival.");
+      }
     }
+
+    async function nextStop() {
+      const driverName = getDriverName();
+
+      if (!driverName || !currentStop) {
+        setStatus("Load your route first.");
+        return;
+      }
+
+      const stopNumbers = loadedRoute.map(r => Number(r.stopNumber)).sort((a, b) => a - b);
+      const currentIndex = stopNumbers.indexOf(Number(currentStop));
+
+      if (currentIndex === -1) {
+        setStatus("Current stop not found in route.");
+        return;
+      }
+
+      if (currentIndex === stopNumbers.length - 1) {
+        setStatus("You are already at the last stop.");
+        return;
+      }
+
+      currentStop = stopNumbers[currentIndex + 1];
+      updateCurrentStopBox();
+
+      try {
+        await sendStop(driverName, currentStop);
+        setStatus(
+          `Driver: ${driverName}
+Moved to Stop: ${currentStop}`
+        );
+        await loadMyRoute();
+      } catch (err) {
+        setStatus("Error moving to next stop.");
+      }
+    }
+
+    loadDriverList();
   </script>
 </body>
 </html>
