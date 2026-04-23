@@ -1,258 +1,44 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Precinct Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f7f7f7;
-      color: #222;
-    }
-
-    .container {
-      max-width: 700px;
-      margin: 0 auto;
-      padding: 16px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    .title {
-      font-size: 26px;
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-
-    .subtitle {
-      color: #666;
-      font-size: 14px;
-    }
-
-    .status-banner {
-      font-size: 22px;
-      font-weight: bold;
-      text-align: center;
-      padding: 16px;
-      border-radius: 14px;
-      margin-bottom: 14px;
-    }
-
-    .status-red {
-      background: #f8d7da;
-      color: #842029;
-    }
-
-    .status-yellow {
-      background: #fff3cd;
-      color: #664d03;
-    }
-
-    .status-green {
-      background: #d1e7dd;
-      color: #0f5132;
-    }
-
-    .status-blue {
-      background: #cfe2ff;
-      color: #084298;
-    }
-
-    .label {
-      font-weight: bold;
-    }
-
-    .info-row {
-      margin-bottom: 8px;
-      line-height: 1.5;
-    }
-
-    #map {
-      height: 420px;
-      width: 100%;
-      border-radius: 14px;
-    }
-
-    .error {
-      color: #b00020;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="utf-8" />
+<title>Precinct Tracker</title>
 </head>
 <body>
-  <div class="container">
 
-    <div class="card">
-      <div class="title">Precinct Tracker</div>
-      <div class="subtitle">Live delivery status for your assigned driver</div>
-    </div>
+<h2>Precinct Tracker</h2>
+<div id="info"></div>
 
-    <div id="statusBanner" class="status-banner status-blue">
-      Loading status...
-    </div>
+<script>
+const params = new URLSearchParams(window.location.search);
+const precinct = params.get("precinct");
 
-    <div class="card" id="info">
-      Loading precinct information...
-    </div>
+async function load() {
+  const res = await fetch(`/assignment/${precinct}`);
+  const data = await res.json();
 
-    <div class="card">
-      <div id="map"></div>
-    </div>
+  let status = "";
 
-  </div>
+  if (data.statusCode === "on_the_way") {
+    status = `Driver is on the way (${data.stopsBeforeYou} stops away)`;
+  } else if (data.statusCode === "completed_or_return") {
+    status = "Driver Completed Collection or Will Return";
+  } else {
+    status = "Driver not started";
+  }
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const precinct = params.get("precinct");
+  document.getElementById("info").innerHTML = `
+    Precinct: ${data.assignment.precinct}<br>
+    Driver: ${data.assignment.driverId}<br>
+    Stop: ${data.assignment.stopNumber}<br>
+    Status: ${status}<br>
+    ETA: ${data.etaMinutes ? data.etaMinutes + " min" : "N/A"}
+  `;
+}
 
-    const info = document.getElementById("info");
-    const banner = document.getElementById("statusBanner");
+setInterval(load, 3000);
+load();
+</script>
 
-    if (!precinct) {
-      info.innerHTML = '<div class="error">Missing precinct in URL.</div>';
-      throw new Error("Missing precinct");
-    }
-
-    const map = L.map("map").setView([39.9526, -75.1652], 12);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
-
-    let marker = null;
-    let firstLoad = true;
-
-    function formatTime(isoString) {
-      if (!isoString) return "Unknown";
-      return new Date(isoString).toLocaleString();
-    }
-
-    function getStatus(statusCode, stopsBeforeYou, hasLocation) {
-      if (!hasLocation) {
-        return ["Waiting for driver location", "status-blue"];
-      }
-
-      if (statusCode === "not_started") {
-        return ["Driver has not started the route yet", "status-red"];
-      }
-
-      if (statusCode === "on_the_way") {
-        if (stopsBeforeYou === 0) {
-          return ["Driver is on the way", "status-green"];
-        }
-
-        if (stopsBeforeYou === 1) {
-          return ["Driver is on the way (1 stop away)", "status-yellow"];
-        }
-
-        return [`Driver is on the way (${stopsBeforeYou} stops away)`, "status-yellow"];
-      }
-
-      if (statusCode === "completed_or_return") {
-        return ["Driver Completed Collection or Will Return", "status-blue"];
-      }
-
-      return ["Loading status...", "status-blue"];
-    }
-
-    async function loadPrecinct() {
-      try {
-        const res = await fetch(`/assignment/${encodeURIComponent(precinct)}`);
-
-        if (!res.ok) {
-          throw new Error("Precinct not found");
-        }
-
-        const data = await res.json();
-
-        const assignment = data.assignment;
-        const driverLocation = data.driverLocation;
-        const progress = data.progress;
-        const stopsBeforeYou = data.stopsBeforeYou;
-        const statusCode = data.statusCode;
-        const etaMinutes = data.etaMinutes;
-
-        const [statusText, statusClass] = getStatus(
-          statusCode,
-          stopsBeforeYou,
-          !!driverLocation
-        );
-
-        banner.className = `status-banner ${statusClass}`;
-        banner.innerText = statusText;
-
-        let html = `
-          <div class="info-row"><span class="label">Precinct:</span> ${assignment.precinct}</div>
-          <div class="info-row"><span class="label">Assigned Driver:</span> ${assignment.driverId}</div>
-          <div class="info-row"><span class="label">Stop Number:</span> ${assignment.stopNumber}</div>
-          <div class="info-row"><span class="label">Location:</span> ${assignment.placeName}</div>
-          <div class="info-row"><span class="label">Address:</span> ${assignment.streetAddress}</div>
-        `;
-
-        if (progress) {
-          html += `
-            <div class="info-row"><span class="label">Driver Current Stop:</span> ${progress.currentStop || "Not selected yet"}</div>
-            <div class="info-row"><span class="label">Stops Before You:</span> ${stopsBeforeYou ?? "N/A"}</div>
-            <div class="info-row"><span class="label">Estimated Arrival:</span> ${
-              etaMinutes !== null && etaMinutes !== undefined ? etaMinutes + " minutes" : "N/A"
-            }</div>
-            <div class="info-row"><span class="label">Progress Updated:</span> ${formatTime(progress.updatedAt)}</div>
-          `;
-        } else {
-          html += `
-            <div class="info-row"><span class="label">Driver Current Stop:</span> Not started yet</div>
-            <div class="info-row"><span class="label">Estimated Arrival:</span> N/A</div>
-          `;
-        }
-
-        if (driverLocation) {
-          html += `
-            <div class="info-row"><span class="label">Driver Last GPS Update:</span> ${formatTime(driverLocation.updatedAt)}</div>
-          `;
-        } else {
-          html += `
-            <div class="info-row"><span class="label">Driver GPS:</span> Waiting for driver location</div>
-          `;
-        }
-
-        info.innerHTML = html;
-
-        if (driverLocation) {
-          const lat = driverLocation.lat;
-          const lon = driverLocation.lon;
-
-          if (!marker) {
-            marker = L.marker([lat, lon]).addTo(map);
-            marker.bindPopup(`Driver: ${assignment.driverId}`);
-          } else {
-            marker.setLatLng([lat, lon]);
-          }
-
-          if (firstLoad) {
-            map.setView([lat, lon], 14);
-            firstLoad = false;
-          }
-        }
-
-      } catch (err) {
-        banner.className = "status-banner status-red";
-        banner.innerText = "Unable to load precinct data";
-        info.innerHTML = `<div class="error">Unable to load precinct data.</div>`;
-      }
-    }
-
-    loadPrecinct();
-    setInterval(loadPrecinct, 5000);
-  </script>
 </body>
 </html>
