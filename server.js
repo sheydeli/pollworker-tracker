@@ -16,7 +16,7 @@ const validPrecincts = new Set(assignments.map(a => a.precinct));
 let locations = [];
 let driverProgress = {};
 
-// DRIVER LOCATION UPDATE
+// UPDATE DRIVER GPS LOCATION
 app.post("/update-location", (req, res) => {
   const { id, lat, lon } = req.body;
 
@@ -38,7 +38,7 @@ app.post("/update-location", (req, res) => {
   res.json({ status: "updated" });
 });
 
-// DRIVER STOP UPDATE
+// UPDATE DRIVER CURRENT STOP
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
 
@@ -55,7 +55,7 @@ app.get("/locations", (req, res) => {
   res.json(locations);
 });
 
-// GET SINGLE DRIVER
+// GET SINGLE DRIVER LOCATION
 app.get("/locations/:id", (req, res) => {
   const location = locations.find(l => l.id === req.params.id);
 
@@ -66,7 +66,7 @@ app.get("/locations/:id", (req, res) => {
   res.json(location);
 });
 
-// PRECINCT LOOKUP
+// GET PRECINCT ASSIGNMENT + DRIVER INFO
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
 
@@ -79,11 +79,8 @@ app.get("/assignment/:precinct", (req, res) => {
   const progress = driverProgress[assignment.driverId] || null;
 
   let stopsBeforeYou = null;
-  if (progress) {
-    stopsBeforeYou = Math.max(
-      assignment.stopNumber - progress.currentStop,
-      0
-    );
+  if (progress && typeof progress.currentStop === "number") {
+    stopsBeforeYou = Math.max(assignment.stopNumber - progress.currentStop, 0);
   }
 
   res.json({
