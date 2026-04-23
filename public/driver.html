@@ -305,15 +305,49 @@ Total Stops: ${loadedRoute.length}`
           div.classList.add("active");
         }
 
+        const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
+
         div.innerHTML = `
           <div><strong>Stop ${stop.stopNumber}</strong></div>
           <div><strong>Precinct:</strong> ${stop.precinct}</div>
           <div><strong>Location:</strong> ${stop.placeName}</div>
           <div><strong>Address:</strong> ${stop.streetAddress}</div>
+          <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
+          <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
         `;
 
         routeList.appendChild(div);
       });
+    }
+
+    async function selectStop(stopNumber) {
+      const driverName = getDriverName();
+
+      if (!driverName) {
+        setStatus("Select your name first.");
+        return;
+      }
+
+      currentStop = stopNumber;
+      updateCurrentStopBox();
+
+      try {
+        await sendStop(driverName, currentStop);
+
+        setStatus(
+          `Driver: ${driverName}
+Now working on Stop: ${currentStop}`
+        );
+
+        await loadMyRoute();
+      } catch (err) {
+        setStatus("Error selecting stop.");
+      }
+    }
+
+    function navigateTo(encodedAddress) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+      window.open(url, "_blank");
     }
 
     function startTracking() {
