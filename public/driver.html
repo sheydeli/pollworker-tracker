@@ -5,137 +5,27 @@
   <title>Driver Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f7f7f7;
-      color: #222;
-    }
-
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 16px;
-    }
-
-    h2 {
-      margin: 0 0 16px 0;
-      font-size: 28px;
-      text-align: center;
-    }
-
-    .card {
-      background: white;
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    label {
-      display: block;
-      font-weight: bold;
-      margin-top: 10px;
-      margin-bottom: 6px;
-    }
-
-    select, button {
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 18px;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      margin-top: 10px;
-    }
-
-    button {
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    .primary {
-      background: #0b6efd;
-      color: white;
-    }
-
-    .success {
-      background: #198754;
-      color: white;
-    }
-
-    .status-box {
-      background: #fff;
-      border-radius: 14px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      white-space: pre-line;
-      line-height: 1.5;
-      font-size: 15px;
-    }
-
-    .section-title {
-      font-size: 20px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-
-    .route-item {
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
-      background: #fff;
-    }
-
-    .route-item.current {
-      border-color: #0b6efd;
-      background: #eaf2ff;
-    }
-
-    .route-item.finished {
-      border-color: #198754;
-      background: #e8f5ee;
-      opacity: 0.9;
-    }
-
-    .current-stop-box {
-      font-size: 20px;
-      font-weight: bold;
-      padding: 14px;
-      border-radius: 10px;
-      background: #f1f1f1;
-      margin-top: 12px;
-      text-align: center;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    .small {
-      color: #666;
-      font-size: 14px;
-      margin-top: 6px;
-    }
-
-    .button-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .button-row button {
-      width: 50%;
-      margin-top: 0;
-    }
-
-    .empty {
-      color: #666;
-      font-style: italic;
-      margin-bottom: 10px;
-    }
+    body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; color: #222; }
+    .container { max-width: 720px; margin: 0 auto; padding: 16px; }
+    h2 { margin: 0 0 16px 0; font-size: 28px; text-align: center; }
+    .card { background: white; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    label { display: block; font-weight: bold; margin-top: 10px; margin-bottom: 6px; }
+    select, button { width: 100%; box-sizing: border-box; font-size: 18px; padding: 14px; border-radius: 10px; border: 1px solid #ccc; margin-top: 10px; }
+    button { border: none; cursor: pointer; font-weight: bold; }
+    .primary { background: #0b6efd; color: white; }
+    .success { background: #198754; color: white; }
+    .secondary { background: #6c757d; color: white; }
+    .status-box { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); white-space: pre-line; line-height: 1.5; font-size: 15px; }
+    .section-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+    .route-item { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: #fff; }
+    .route-item.current { border-color: #0b6efd; background: #eaf2ff; }
+    .route-item.finished { border-color: #198754; background: #e8f5ee; opacity: 0.9; }
+    .current-stop-box { font-size: 20px; font-weight: bold; padding: 14px; border-radius: 10px; background: #f1f1f1; margin-top: 12px; text-align: center; }
+    .hidden { display: none; }
+    .small { color: #666; font-size: 14px; margin-top: 6px; }
+    .button-row { display: flex; gap: 10px; margin-top: 10px; }
+    .button-row button { width: 50%; margin-top: 0; }
+    .empty { color: #666; font-style: italic; margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -182,6 +72,7 @@
     let loadedRoute = [];
     let currentStop = null;
     let completedStops = [];
+    let reopenedStops = [];
 
     function setStatus(message) {
       document.getElementById("status").innerText = message;
@@ -189,11 +80,7 @@
 
     function updateCurrentStopBox() {
       const box = document.getElementById("currentStopBox");
-      if (currentStop) {
-        box.innerText = `Current Stop: ${currentStop}`;
-      } else {
-        box.innerText = "Current Stop: Not set";
-      }
+      box.innerText = currentStop ? `Current Stop: ${currentStop}` : "Current Stop: Not set";
     }
 
     async function loadDriverList() {
@@ -224,9 +111,7 @@
     async function sendLocation(id, lat, lon) {
       const res = await fetch("/update-location", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, lat, lon })
       });
       return res.json();
@@ -235,15 +120,32 @@
     async function sendStop(driverId, stop) {
       const res = await fetch("/update-driver-stop", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          driverId,
-          currentStop: Number(stop)
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driverId, currentStop: Number(stop) })
       });
       return res.json();
+    }
+
+    async function reopenStop(stopNumber) {
+      const driverName = getDriverName();
+
+      if (!driverName) {
+        setStatus("Select your name first.");
+        return;
+      }
+
+      try {
+        await fetch("/reopen-stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ driverId: driverName, stopNumber: Number(stopNumber) })
+        });
+
+        setStatus(`Stop ${stopNumber} moved back to the end of To Do.`);
+        await loadMyRoute();
+      } catch (err) {
+        setStatus("Error reopening stop.");
+      }
     }
 
     async function loadMyRoute() {
@@ -267,17 +169,11 @@
 
         const data = await res.json();
         loadedRoute = data.route;
-        const progress = data.progress;
+        const progress = data.progress || {};
 
-        if (progress && progress.currentStop) {
-          currentStop = Number(progress.currentStop);
-        } else {
-          currentStop = null;
-        }
-
-        completedStops = progress && Array.isArray(progress.completedStops)
-          ? progress.completedStops.map(Number)
-          : [];
+        currentStop = progress.currentStop ? Number(progress.currentStop) : null;
+        completedStops = Array.isArray(progress.completedStops) ? progress.completedStops.map(Number) : [];
+        reopenedStops = Array.isArray(progress.reopenedStops) ? progress.reopenedStops.map(Number) : [];
 
         updateCurrentStopBox();
         renderRoute();
@@ -296,6 +192,37 @@ Starting GPS automatically...`
       }
     }
 
+    function makeStopCard(stop, cssClass, showActions, showReopen) {
+      const div = document.createElement("div");
+      div.className = `route-item ${cssClass || ""}`;
+
+      const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
+
+      div.innerHTML = `
+        <div><strong>Stop ${stop.stopNumber}</strong></div>
+        <div><strong>Precinct:</strong> ${stop.precinct}</div>
+        <div><strong>Location:</strong> ${stop.placeName}</div>
+        <div><strong>Address:</strong> ${stop.streetAddress}</div>
+      `;
+
+      if (showActions) {
+        div.innerHTML += `
+          <div class="button-row">
+            <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
+            <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
+          </div>
+        `;
+      }
+
+      if (showReopen) {
+        div.innerHTML += `
+          <button class="secondary" onclick="reopenStop(${stop.stopNumber})">Reopen Stop</button>
+        `;
+      }
+
+      return div;
+    }
+
     function renderRoute() {
       const currentSection = document.getElementById("currentStopSection");
       const todoSection = document.getElementById("todoSection");
@@ -306,54 +233,32 @@ Starting GPS automatically...`
       finishedSection.innerHTML = "";
 
       const currentItem = loadedRoute.find(stop => Number(stop.stopNumber) === Number(currentStop));
-      const todoItems = loadedRoute.filter(
-        stop =>
-          Number(stop.stopNumber) !== Number(currentStop) &&
-          !completedStops.includes(Number(stop.stopNumber))
+
+      const finishedItems = loadedRoute.filter(stop =>
+        completedStops.includes(Number(stop.stopNumber))
       );
-      const finishedItems = loadedRoute.filter(
-        stop => completedStops.includes(Number(stop.stopNumber))
+
+      const todoItemsNormal = loadedRoute.filter(stop =>
+        Number(stop.stopNumber) !== Number(currentStop) &&
+        !completedStops.includes(Number(stop.stopNumber)) &&
+        !reopenedStops.includes(Number(stop.stopNumber))
       );
+
+      const todoItemsReopened = reopenedStops
+        .map(stopNumber => loadedRoute.find(stop => Number(stop.stopNumber) === Number(stopNumber)))
+        .filter(Boolean);
+
+      const todoItems = [...todoItemsNormal, ...todoItemsReopened];
 
       if (currentItem) {
-        const div = document.createElement("div");
-        div.className = "route-item current";
-
-        const encodedAddress = encodeURIComponent(`${currentItem.streetAddress}, Philadelphia, PA`);
-
-        div.innerHTML = `
-          <div><strong>Stop ${currentItem.stopNumber}</strong></div>
-          <div><strong>Precinct:</strong> ${currentItem.precinct}</div>
-          <div><strong>Location:</strong> ${currentItem.placeName}</div>
-          <div><strong>Address:</strong> ${currentItem.streetAddress}</div>
-          <div class="button-row">
-            <button class="primary" onclick="selectStop(${currentItem.stopNumber})">Start This Stop</button>
-            <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
-          </div>
-        `;
-        currentSection.appendChild(div);
+        currentSection.appendChild(makeStopCard(currentItem, "current", true, false));
       } else {
         currentSection.innerHTML = `<div class="empty">No current stop selected yet.</div>`;
       }
 
       if (todoItems.length) {
         todoItems.forEach(stop => {
-          const div = document.createElement("div");
-          div.className = "route-item";
-
-          const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
-
-          div.innerHTML = `
-            <div><strong>Stop ${stop.stopNumber}</strong></div>
-            <div><strong>Precinct:</strong> ${stop.precinct}</div>
-            <div><strong>Location:</strong> ${stop.placeName}</div>
-            <div><strong>Address:</strong> ${stop.streetAddress}</div>
-            <div class="button-row">
-              <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
-              <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
-            </div>
-          `;
-          todoSection.appendChild(div);
+          todoSection.appendChild(makeStopCard(stop, "", true, false));
         });
       } else {
         todoSection.innerHTML = `<div class="empty">No remaining stops.</div>`;
@@ -361,15 +266,7 @@ Starting GPS automatically...`
 
       if (finishedItems.length) {
         finishedItems.forEach(stop => {
-          const div = document.createElement("div");
-          div.className = "route-item finished";
-          div.innerHTML = `
-            <div><strong>Stop ${stop.stopNumber}</strong></div>
-            <div><strong>Precinct:</strong> ${stop.precinct}</div>
-            <div><strong>Location:</strong> ${stop.placeName}</div>
-            <div><strong>Address:</strong> ${stop.streetAddress}</div>
-          `;
-          finishedSection.appendChild(div);
+          finishedSection.appendChild(makeStopCard(stop, "finished", false, true));
         });
       } else {
         finishedSection.innerHTML = `<div class="empty">No finished stops yet.</div>`;
@@ -419,9 +316,7 @@ Now heading to Stop: ${currentStop}`
         return;
       }
 
-      if (watchId !== null) {
-        return;
-      }
+      if (watchId !== null) return;
 
       watchId = navigator.geolocation.watchPosition(
         async (position) => {
