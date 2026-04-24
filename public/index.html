@@ -2,44 +2,137 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>All Drivers Map</title>
+  <title>Dispatch Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
   <style>
-    body { margin: 0; }
-    #map { height: 100vh; width: 100%; }
+    body {
+      font-family: Arial;
+      margin: 0;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      padding: 16px;
+      margin: 0;
+    }
+
+    #map {
+      height: 400px;
+      margin: 16px;
+      border-radius: 10px;
+    }
+
+    table {
+      width: calc(100% - 32px);
+      margin: 16px;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      text-align: left;
+    }
+
+    th {
+      background: #eee;
+    }
   </style>
 </head>
 <body>
-  <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const map = L.map("map").setView([39.95, -75.16], 11);
+<h1>Dispatch Dashboard</h1>
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
+<div id="map"></div>
 
-    let markers = {};
+<table>
+  <thead>
+    <tr>
+      <th>Driver</th>
+      <th>Current Stop</th>
+      <th>Status</th>
+      <th>Last GPS</th>
+      <th>Total Stops</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody">
+    <tr><td colspan="5">Loading...</td></tr>
+  </tbody>
+</table>
 
-    async function load() {
-      const res = await fetch("/locations");
-      const data = await res.json();
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-      data.forEach(d => {
-        if (markers[d.id]) {
-          markers[d.id].setLatLng([d.lat, d.lon]);
-        } else {
-          markers[d.id] = L.marker([d.lat, d.lon])
+<script>
+const map = L.map("map").setView([39.9526, -75.1652], 11);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+let markers = {};
+
+async function loadDashboard() {
+  try {
+    const driversRes = await fetch("/drivers");
+    const drivers = await driversRes.json();
+
+    const locationsRes = await fetch("/locations");
+    const locations = await locationsRes.json();
+
+    const table = document.getElementById("tableBody");
+    table.innerHTML = "";
+
+    for (const driver of drivers) {
+      const routeRes = await fetch(`/driver-route/${encodeURIComponent(driver)}`);
+      const routeData = await routeRes.json();
+
+      const progress = routeData.progress;
+      const route = routeData.route;
+
+      const location = locations.find(l => l.id === driver);
+
+      let status = "Not started";
+      if (progress && progress.currentStop) {
+        status = `On Stop ${progress.currentStop}`;
+      }
+
+      // Add table row
+      const row = `
+        <tr>
+          <td>${driver}</td>
+          <td>${progress?.currentStop || "N/A"}</td>
+          <td>${status}</td>
+          <td>${location?.updatedAt ? new Date(location.updatedAt).toLocaleTimeString() : "No GPS"}</td>
+          <td>${route.length}</td>
+        </tr>
+      `;
+      table.innerHTML += row;
+
+      // Map marker
+      if (location) {
+        if (!markers[driver]) {
+          markers[driver] = L.marker([location.lat, location.lon])
             .addTo(map)
-            .bindPopup(`Driver: ${d.id}`);
+            .bindPopup(driver);
+        } else {
+          markers[driver].setLatLng([location.lat, location.lon]);
         }
-      });
+      }
     }
 
-    setInterval(load, 5000);
-    load();
-  </script>
+  } catch (err) {
+    document.getElementById("tableBody").innerHTML =
+      `<tr><td colspan="5">Error loading data</td></tr>`;
+  }
+}
+
+setInterval(loadDashboard, 5000);
+loadDashboard();
+</script>
+
 </body>
 </html>
