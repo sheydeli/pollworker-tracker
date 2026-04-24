@@ -12,20 +12,17 @@
       font-family: Arial, sans-serif;
       margin: 0;
       background: #f5f5f5;
-      color: #111;
     }
 
     h1 {
       padding: 16px;
       margin: 0;
-      font-size: 32px;
     }
 
     #map {
-      height: 430px;
+      height: 420px;
       margin: 16px;
       border-radius: 10px;
-      overflow: hidden;
     }
 
     table {
@@ -41,13 +38,11 @@
       padding: 14px;
       border-bottom: 1px solid #eee;
       text-align: left;
-      font-size: 16px;
       vertical-align: middle;
     }
 
     th {
       background: #eee;
-      font-weight: bold;
     }
 
     .driver-name {
@@ -57,30 +52,54 @@
     }
 
     .driver-symbol {
-      width: 22px;
-      height: 22px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
-      display: inline-block;
       border: 2px solid white;
-      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+      box-shadow: 0 0 4px rgba(0,0,0,0.5);
     }
 
-    .driver-marker {
+    .marker {
       width: 30px;
       height: 30px;
       border-radius: 50%;
       border: 3px solid white;
-      box-shadow: 0 0 6px rgba(0,0,0,0.5);
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
     }
 
-    .status-active {
+    .active {
+      color: green;
       font-weight: bold;
-      color: #0f5132;
     }
 
-    .status-inactive {
-      color: #842029;
+    .inactive {
+      color: red;
       font-weight: bold;
+    }
+
+    .progress-wrap {
+      width: 160px;
+    }
+
+    .progress-label {
+      font-size: 13px;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 12px;
+      background: #e5e5e5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: #198754;
+      border-radius: 999px;
+      transition: width 0.3s ease;
     }
   </style>
 </head>
@@ -97,11 +116,12 @@
       <th>Current Stop</th>
       <th>Status</th>
       <th>Last GPS</th>
-      <th>Total Stops</th>
+      <th>Stops</th>
+      <th>Progress</th>
     </tr>
   </thead>
   <tbody id="tableBody">
-    <tr><td colspan="5">Loading...</td></tr>
+    <tr><td colspan="6">Loading...</td></tr>
   </tbody>
 </table>
 
@@ -116,30 +136,54 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 let markers = {};
 
-const driverColors = [
-  "#0d6efd",
-  "#198754",
-  "#dc3545",
-  "#fd7e14",
-  "#6f42c1",
-  "#20c997",
-  "#d63384",
-  "#ffc107",
-  "#0dcaf0",
-  "#6610f2"
+const colors = [
+  "#0d6efd", "#198754", "#dc3545", "#fd7e14", "#6f42c1",
+  "#20c997", "#d63384", "#ffc107", "#0dcaf0", "#6610f2"
 ];
 
-function getDriverColor(driverName, index) {
-  return driverColors[index % driverColors.length];
+function getColor(i) {
+  return colors[i % colors.length];
 }
 
-function createDriverIcon(color) {
+function createIcon(color) {
   return L.divIcon({
+    html: `<div class="marker" style="background:${color};"></div>`,
     className: "",
-    html: `<div class="driver-marker" style="background:${color};"></div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15]
   });
+}
+
+function getCompletedCount(progress) {
+  if (!progress || !Array.isArray(progress.completedStops)) {
+    return 0;
+  }
+
+  return progress.completedStops.length;
+}
+
+function getProgressPercent(progress, route) {
+  const completed = getCompletedCount(progress);
+  const total = route.length || 0;
+
+  if (total === 0) return 0;
+
+  return Math.round((completed / total) * 100);
+}
+
+function getProgressBar(progress, route) {
+  const completed = getCompletedCount(progress);
+  const total = route.length || 0;
+  const percent = getProgressPercent(progress, route);
+
+  return `
+    <div class="progress-wrap">
+      <div class="progress-label">${completed} / ${total} completed</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${percent}%"></div>
+      </div>
+    </div>
+  `;
 }
 
 function getCurrentStopText(route, progress) {
@@ -147,25 +191,23 @@ function getCurrentStopText(route, progress) {
     return "N/A";
   }
 
-  const currentStopNumber = Number(progress.currentStop);
+  const stopNum = Number(progress.currentStop);
 
-  const currentStop = route.find(stop =>
-    Number(stop.stopNumber) === currentStopNumber
-  );
+  const stop = route.find(s => Number(s.stopNumber) === stopNum);
 
-  if (!currentStop) {
-    return `Stop ${currentStopNumber}`;
+  if (!stop) {
+    return `Stop ${stopNum}`;
   }
 
-  return `${currentStop.precinct} - ${currentStop.placeName}`;
+  return `${stop.precinct} - ${stop.placeName}`;
 }
 
 function getStatus(progress) {
   if (!progress || !progress.currentStop) {
-    return `<span class="status-inactive">Not started</span>`;
+    return `<span class="inactive">Not started</span>`;
   }
 
-  return `<span class="status-active">On the way</span>`;
+  return `<span class="active">On the way</span>`;
 }
 
 async function loadDashboard() {
@@ -181,16 +223,17 @@ async function loadDashboard() {
 
     for (let i = 0; i < drivers.length; i++) {
       const driver = drivers[i];
-      const color = getDriverColor(driver, i);
+      const color = getColor(i);
 
       const routeRes = await fetch(`/driver-route/${encodeURIComponent(driver)}`);
       const routeData = await routeRes.json();
 
-      const progress = routeData.progress;
-      const route = routeData.route;
+      const route = routeData.route || [];
+      const progress = routeData.progress || null;
       const location = locations.find(l => l.id === driver);
 
       const currentStopText = getCurrentStopText(route, progress);
+      const completed = getCompletedCount(progress);
 
       const row = document.createElement("tr");
 
@@ -204,13 +247,14 @@ async function loadDashboard() {
         <td>${currentStopText}</td>
         <td>${getStatus(progress)}</td>
         <td>${location?.updatedAt ? new Date(location.updatedAt).toLocaleTimeString() : "No GPS"}</td>
-        <td>${route.length}</td>
+        <td>${completed} / ${route.length}</td>
+        <td>${getProgressBar(progress, route)}</td>
       `;
 
       table.appendChild(row);
 
       if (location) {
-        const icon = createDriverIcon(color);
+        const icon = createIcon(color);
 
         if (!markers[driver]) {
           markers[driver] = L.marker([location.lat, location.lon], { icon })
@@ -218,6 +262,7 @@ async function loadDashboard() {
             .bindPopup(`
               <b>${driver}</b><br>
               ${currentStopText}<br>
+              Stops: ${completed} / ${route.length}<br>
               Last GPS: ${new Date(location.updatedAt).toLocaleTimeString()}
             `);
         } else {
@@ -226,6 +271,7 @@ async function loadDashboard() {
           markers[driver].setPopupContent(`
             <b>${driver}</b><br>
             ${currentStopText}<br>
+            Stops: ${completed} / ${route.length}<br>
             Last GPS: ${new Date(location.updatedAt).toLocaleTimeString()}
           `);
         }
@@ -234,7 +280,7 @@ async function loadDashboard() {
 
   } catch (err) {
     document.getElementById("tableBody").innerHTML =
-      `<tr><td colspan="5">Error loading dashboard data</td></tr>`;
+      `<tr><td colspan="6">Error loading dashboard data</td></tr>`;
   }
 }
 
