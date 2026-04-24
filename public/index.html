@@ -78,13 +78,15 @@
     }
 
     .progress-wrap {
-      width: 160px;
+      width: 180px;
+      cursor: pointer;
     }
 
     .progress-label {
       font-size: 13px;
       margin-bottom: 5px;
       font-weight: bold;
+      text-decoration: underline;
     }
 
     .progress-bar-bg {
@@ -100,6 +102,65 @@
       background: #198754;
       border-radius: 999px;
       transition: width 0.3s ease;
+    }
+
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal {
+      background: white;
+      max-width: 650px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+    }
+
+    .modal h2 {
+      margin-top: 0;
+    }
+
+    .modal-section {
+      margin-top: 18px;
+    }
+
+    .modal-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      line-height: 1.4;
+    }
+
+    .modal-item:last-child {
+      border-bottom: none;
+    }
+
+    .close-btn {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 18px;
+      font-size: 16px;
+    }
+
+    .empty {
+      color: #666;
+      font-style: italic;
+      padding: 8px 0;
     }
   </style>
 </head>
@@ -125,6 +186,14 @@
   </tbody>
 </table>
 
+<div id="modalBackdrop" class="modal-backdrop" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h2 id="modalTitle">Driver Details</h2>
+    <div id="modalContent"></div>
+    <button class="close-btn" onclick="hideModal()">Close</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
@@ -135,6 +204,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 let markers = {};
+let dashboardData = [];
 
 const colors = [
   "#0d6efd", "#198754", "#dc3545", "#fd7e14", "#6f42c1",
@@ -171,13 +241,13 @@ function getProgressPercent(progress, route) {
   return Math.round((completed / total) * 100);
 }
 
-function getProgressBar(progress, route) {
+function getProgressBar(driverId, progress, route) {
   const completed = getCompletedCount(progress);
   const total = route.length || 0;
   const percent = getProgressPercent(progress, route);
 
   return `
-    <div class="progress-wrap">
+    <div class="progress-wrap" onclick="showDriverDetails('${driverId.replace(/'/g, "\\'")}')">
       <div class="progress-label">${completed} / ${total} completed</div>
       <div class="progress-bar-bg">
         <div class="progress-bar-fill" style="width:${percent}%"></div>
@@ -192,7 +262,6 @@ function getCurrentStopText(route, progress) {
   }
 
   const stopNum = Number(progress.currentStop);
-
   const stop = route.find(s => Number(s.stopNumber) === stopNum);
 
   if (!stop) {
@@ -210,6 +279,111 @@ function getStatus(progress) {
   return `<span class="active">On the way</span>`;
 }
 
+function stopLabel(stop) {
+  return `${stop.precinct} - ${stop.placeName}`;
+}
+
+function showDriverDetails(driverId) {
+  const driver = dashboardData.find(d => d.driverId === driverId);
+  if (!driver) return;
+
+  const route = driver.route || [];
+  const progress = driver.progress || {};
+  const completedStops = Array.isArray(progress.completedStops)
+    ? progress.completedStops.map(Number)
+    : [];
+  const reopenedStops = Array.isArray(progress.reopenedStops)
+    ? progress.reopenedStops.map(Number)
+    : [];
+  const currentStopNumber = progress.currentStop ? Number(progress.currentStop) : null;
+
+  const completedItems = route.filter(stop =>
+    completedStops.includes(Number(stop.stopNumber))
+  );
+
+  const reopenedItems = route.filter(stop =>
+    reopenedStops.includes(Number(stop.stopNumber))
+  );
+
+  const currentItem = route.find(stop =>
+    Number(stop.stopNumber) === currentStopNumber
+  );
+
+  const todoItems = route.filter(stop =>
+    Number(stop.stopNumber) !== currentStopNumber &&
+    !completedStops.includes(Number(stop.stopNumber)) &&
+    !reopenedStops.includes(Number(stop.stopNumber))
+  );
+
+  const modalTitle = document.getElementById("modalTitle");
+  const modalContent = document.getElementById("modalContent");
+
+  modalTitle.innerText = `${driver.driverId} Route Details`;
+
+  let html = `
+    <div><strong>Progress:</strong> ${completedItems.length} / ${route.length} completed</div>
+    <div><strong>Current Stop:</strong> ${currentItem ? stopLabel(currentItem) : "N/A"}</div>
+  `;
+
+  html += `<div class="modal-section"><h3>Completed Precincts</h3>`;
+  if (completedItems.length) {
+    completedItems.forEach(stop => {
+      html += `
+        <div class="modal-item">
+          <strong>${stop.precinct}</strong> - ${stop.placeName}<br>
+          Stop ${stop.stopNumber} | ${stop.streetAddress}
+        </div>
+      `;
+    });
+  } else {
+    html += `<div class="empty">No completed precincts yet.</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="modal-section"><h3>Reopened / Returned to End</h3>`;
+  if (reopenedItems.length) {
+    reopenedItems.forEach(stop => {
+      html += `
+        <div class="modal-item">
+          <strong>${stop.precinct}</strong> - ${stop.placeName}<br>
+          Stop ${stop.stopNumber} | ${stop.streetAddress}
+        </div>
+      `;
+    });
+  } else {
+    html += `<div class="empty">No reopened stops.</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="modal-section"><h3>Remaining To Do</h3>`;
+  if (todoItems.length) {
+    todoItems.forEach(stop => {
+      html += `
+        <div class="modal-item">
+          <strong>${stop.precinct}</strong> - ${stop.placeName}<br>
+          Stop ${stop.stopNumber} | ${stop.streetAddress}
+        </div>
+      `;
+    });
+  } else {
+    html += `<div class="empty">No remaining standard stops.</div>`;
+  }
+  html += `</div>`;
+
+  modalContent.innerHTML = html;
+  document.getElementById("modalBackdrop").style.display = "flex";
+}
+
+function hideModal() {
+  document.getElementById("modalBackdrop").style.display = "none";
+}
+
+function closeModal(event) {
+  if (event.target.id === "modalBackdrop") {
+    hideModal();
+  }
+}
+
 async function loadDashboard() {
   try {
     const driversRes = await fetch("/drivers");
@@ -220,6 +394,7 @@ async function loadDashboard() {
 
     const table = document.getElementById("tableBody");
     table.innerHTML = "";
+    dashboardData = [];
 
     for (let i = 0; i < drivers.length; i++) {
       const driver = drivers[i];
@@ -231,6 +406,13 @@ async function loadDashboard() {
       const route = routeData.route || [];
       const progress = routeData.progress || null;
       const location = locations.find(l => l.id === driver);
+
+      dashboardData.push({
+        driverId: driver,
+        route,
+        progress,
+        location
+      });
 
       const currentStopText = getCurrentStopText(route, progress);
       const completed = getCompletedCount(progress);
@@ -248,7 +430,7 @@ async function loadDashboard() {
         <td>${getStatus(progress)}</td>
         <td>${location?.updatedAt ? new Date(location.updatedAt).toLocaleTimeString() : "No GPS"}</td>
         <td>${completed} / ${route.length}</td>
-        <td>${getProgressBar(progress, route)}</td>
+        <td>${getProgressBar(driver, progress, route)}</td>
       `;
 
       table.appendChild(row);
