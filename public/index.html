@@ -9,20 +9,23 @@
 
   <style>
     body {
-      font-family: Arial;
+      font-family: Arial, sans-serif;
       margin: 0;
       background: #f5f5f5;
+      color: #111;
     }
 
     h1 {
       padding: 16px;
       margin: 0;
+      font-size: 32px;
     }
 
     #map {
-      height: 400px;
+      height: 430px;
       margin: 16px;
       border-radius: 10px;
+      overflow: hidden;
     }
 
     table {
@@ -35,13 +38,49 @@
     }
 
     th, td {
-      padding: 12px;
+      padding: 14px;
       border-bottom: 1px solid #eee;
       text-align: left;
+      font-size: 16px;
+      vertical-align: middle;
     }
 
     th {
       background: #eee;
+      font-weight: bold;
+    }
+
+    .driver-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .driver-symbol {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 2px solid white;
+      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+    }
+
+    .driver-marker {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    }
+
+    .status-active {
+      font-weight: bold;
+      color: #0f5132;
+    }
+
+    .status-inactive {
+      color: #842029;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -71,9 +110,63 @@
 <script>
 const map = L.map("map").setView([39.9526, -75.1652], 11);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
 
 let markers = {};
+
+const driverColors = [
+  "#0d6efd",
+  "#198754",
+  "#dc3545",
+  "#fd7e14",
+  "#6f42c1",
+  "#20c997",
+  "#d63384",
+  "#ffc107",
+  "#0dcaf0",
+  "#6610f2"
+];
+
+function getDriverColor(driverName, index) {
+  return driverColors[index % driverColors.length];
+}
+
+function createDriverIcon(color) {
+  return L.divIcon({
+    className: "",
+    html: `<div class="driver-marker" style="background:${color};"></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15]
+  });
+}
+
+function getCurrentStopText(route, progress) {
+  if (!progress || !progress.currentStop) {
+    return "N/A";
+  }
+
+  const currentStopNumber = Number(progress.currentStop);
+
+  const currentStop = route.find(stop =>
+    Number(stop.stopNumber) === currentStopNumber
+  );
+
+  if (!currentStop) {
+    return `Stop ${currentStopNumber}`;
+  }
+
+  return `${currentStop.precinct} - ${currentStop.placeName}`;
+}
+
+function getStatus(progress) {
+  if (!progress || !progress.currentStop) {
+    return `<span class="status-inactive">Not started</span>`;
+  }
+
+  return `<span class="status-active">On the way</span>`;
+}
 
 async function loadDashboard() {
   try {
@@ -86,47 +179,62 @@ async function loadDashboard() {
     const table = document.getElementById("tableBody");
     table.innerHTML = "";
 
-    for (const driver of drivers) {
+    for (let i = 0; i < drivers.length; i++) {
+      const driver = drivers[i];
+      const color = getDriverColor(driver, i);
+
       const routeRes = await fetch(`/driver-route/${encodeURIComponent(driver)}`);
       const routeData = await routeRes.json();
 
       const progress = routeData.progress;
       const route = routeData.route;
-
       const location = locations.find(l => l.id === driver);
 
-      let status = "Not started";
-      if (progress && progress.currentStop) {
-        status = `On Stop ${progress.currentStop}`;
-      }
+      const currentStopText = getCurrentStopText(route, progress);
 
-      // Add table row
-      const row = `
-        <tr>
-          <td>${driver}</td>
-          <td>${progress?.currentStop || "N/A"}</td>
-          <td>${status}</td>
-          <td>${location?.updatedAt ? new Date(location.updatedAt).toLocaleTimeString() : "No GPS"}</td>
-          <td>${route.length}</td>
-        </tr>
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>
+          <div class="driver-name">
+            <span class="driver-symbol" style="background:${color};"></span>
+            <span>${driver}</span>
+          </div>
+        </td>
+        <td>${currentStopText}</td>
+        <td>${getStatus(progress)}</td>
+        <td>${location?.updatedAt ? new Date(location.updatedAt).toLocaleTimeString() : "No GPS"}</td>
+        <td>${route.length}</td>
       `;
-      table.innerHTML += row;
 
-      // Map marker
+      table.appendChild(row);
+
       if (location) {
+        const icon = createDriverIcon(color);
+
         if (!markers[driver]) {
-          markers[driver] = L.marker([location.lat, location.lon])
+          markers[driver] = L.marker([location.lat, location.lon], { icon })
             .addTo(map)
-            .bindPopup(driver);
+            .bindPopup(`
+              <b>${driver}</b><br>
+              ${currentStopText}<br>
+              Last GPS: ${new Date(location.updatedAt).toLocaleTimeString()}
+            `);
         } else {
           markers[driver].setLatLng([location.lat, location.lon]);
+          markers[driver].setIcon(icon);
+          markers[driver].setPopupContent(`
+            <b>${driver}</b><br>
+            ${currentStopText}<br>
+            Last GPS: ${new Date(location.updatedAt).toLocaleTimeString()}
+          `);
         }
       }
     }
 
   } catch (err) {
     document.getElementById("tableBody").innerHTML =
-      `<tr><td colspan="5">Error loading data</td></tr>`;
+      `<tr><td colspan="5">Error loading dashboard data</td></tr>`;
   }
 }
 
