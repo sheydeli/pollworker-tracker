@@ -34,6 +34,11 @@
       margin-bottom: 8px;
     }
 
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+    }
+
     .status-banner {
       font-size: 22px;
       font-weight: bold;
@@ -89,7 +94,7 @@
 
     <div class="card">
       <div class="title">Precinct Tracker</div>
-      <div>Live delivery status for your assigned driver</div>
+      <div class="subtitle">Live delivery status for your assigned driver</div>
     </div>
 
     <div id="statusBanner" class="status-banner status-blue">
@@ -155,6 +160,14 @@
         return [`Driver is on the way (${stopsBeforeYou} stops away)`, "status-yellow"];
       }
 
+      if (statusCode === "nearby") {
+        return ["Driver is nearby", "status-green"];
+      }
+
+      if (statusCode === "at_stop") {
+        return ["Driver is at your stop", "status-green"];
+      }
+
       if (statusCode === "completed_or_return") {
         return ["Driver Completed Collection or Will Return", "status-blue"];
       }
@@ -199,6 +212,7 @@
         if (progress) {
           html += `
             <div class="info-row"><span class="label">Driver Current Stop:</span> ${progress.currentStop || "Not selected yet"}</div>
+            <div class="info-row"><span class="label">Driver Status:</span> ${progress.stopStatus || "N/A"}</div>
             <div class="info-row"><span class="label">Stops Before You:</span> ${stopsBeforeYou ?? "N/A"}</div>
             <div class="info-row"><span class="label">Estimated Arrival:</span> ${
               etaMinutes !== null && etaMinutes !== undefined ? etaMinutes + " minutes" : "N/A"
@@ -208,6 +222,7 @@
         } else {
           html += `
             <div class="info-row"><span class="label">Driver Current Stop:</span> Not started yet</div>
+            <div class="info-row"><span class="label">Driver Status:</span> Not started</div>
             <div class="info-row"><span class="label">Estimated Arrival:</span> N/A</div>
           `;
         }
