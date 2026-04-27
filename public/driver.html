@@ -141,12 +141,12 @@
     <div id="status" class="status-box">Loading driver list...</div>
 
     <div class="card">
-      <div class="section-title">Current Stop</div>
+      <div class="section-title">Current Auto-Detected Stop</div>
       <div id="currentStopSection" class="empty">No current stop selected yet.</div>
     </div>
 
     <div class="card">
-      <div class="section-title">To Do Stops</div>
+      <div class="section-title">Remaining Stops</div>
       <div id="todoSection">No route loaded yet.</div>
     </div>
 
@@ -162,6 +162,7 @@
     let currentStop = null;
     let completedStops = [];
     let reopenedStops = [];
+    let stopStatus = "not_started";
 
     function setStatus(message) {
       document.getElementById("status").innerText = message;
@@ -173,7 +174,7 @@
 
     function updateCurrentStopBox() {
       document.getElementById("currentStopBox").innerText =
-        currentStop ? `Current Stop: ${currentStop}` : "Current Stop: Not set";
+        currentStop ? `Auto Target Stop: ${currentStop}` : "Auto Target Stop: Not set";
     }
 
     async function loadDrivers() {
@@ -190,23 +191,17 @@
         select.appendChild(option);
       });
 
-      setStatus("Select your name and tap Load My Route.");
-    }
-
-    async function sendStop(driverId, stop) {
-      await fetch("/update-driver-stop", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ driverId, currentStop: Number(stop) })
-      });
+      setStatus("Select your name and tap Load My Route. GPS will do the rest.");
     }
 
     async function sendLocation(driverId, lat, lon) {
-      await fetch("/update-location", {
+      const res = await fetch("/update-location", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ id: driverId, lat, lon })
       });
+
+      return res.json();
     }
 
     async function loadMyRoute() {
@@ -224,20 +219,22 @@
       currentStop = data.progress.currentStop ? Number(data.progress.currentStop) : null;
       completedStops = Array.isArray(data.progress.completedStops) ? data.progress.completedStops.map(Number) : [];
       reopenedStops = Array.isArray(data.progress.reopenedStops) ? data.progress.reopenedStops.map(Number) : [];
+      stopStatus = data.progress.stopStatus || "not_started";
 
       updateCurrentStopBox();
       renderRoute();
       startTracking();
 
       setStatus(
-        `Tracking Active
+        `GPS Tracking Active
 
 Driver: ${driverName}
-Current Stop: ${currentStop || "Not selected yet"}`
+Current Auto Stop: ${currentStop || "Waiting for GPS"}
+Status: ${stopStatus}`
       );
     }
 
-    function makeStopCard(stop, cssClass, showActions, showReopen) {
+    function makeStopCard(stop, cssClass, showNavigate, showReopen) {
       const div = document.createElement("div");
       div.className = `route-item ${cssClass || ""}`;
 
@@ -250,10 +247,9 @@ Current Stop: ${currentStop || "Not selected yet"}`
         <div><strong>Address:</strong> ${stop.streetAddress}</div>
       `;
 
-      if (showActions) {
+      if (showNavigate) {
         div.innerHTML += `
           <div class="button-row">
-            <button class="primary" onclick="selectStop(${stop.stopNumber})">Start This Stop</button>
             <button class="success" onclick="navigateTo('${encodedAddress}')">Navigate</button>
           </div>
         `;
@@ -298,7 +294,7 @@ Current Stop: ${currentStop || "Not selected yet"}`
       if (currentItem) {
         currentSection.appendChild(makeStopCard(currentItem, "current", true, false));
       } else {
-        currentSection.innerHTML = `<div class="empty">No current stop selected yet.</div>`;
+        currentSection.innerHTML = `<div class="empty">Waiting for GPS to assign current stop.</div>`;
       }
 
       if (todoItems.length) {
@@ -318,23 +314,6 @@ Current Stop: ${currentStop || "Not selected yet"}`
       }
     }
 
-    async function selectStop(stopNumber) {
-      const driverName = getDriverName();
-
-      currentStop = Number(stopNumber);
-      updateCurrentStopBox();
-
-      await sendStop(driverName, currentStop);
-      await loadMyRoute();
-
-      setStatus(
-        `Tracking Active
-
-Driver: ${driverName}
-Now heading to Stop: ${currentStop}`
-      );
-    }
-
     async function reopenStop(stopNumber) {
       const driverName = getDriverName();
 
@@ -345,7 +324,7 @@ Now heading to Stop: ${currentStop}`
       });
 
       await loadMyRoute();
-      setStatus(`Stop ${stopNumber} moved back to the end of To Do.`);
+      setStatus(`Stop ${stopNumber} moved back to the end of the route.`);
     }
 
     async function resetDriver() {
@@ -385,11 +364,30 @@ Now heading to Stop: ${currentStop}`
 
       watchId = navigator.geolocation.watchPosition(
         async position => {
-          await sendLocation(
+          const result = await sendLocation(
             driverName,
             position.coords.latitude,
             position.coords.longitude
           );
+
+          if (result.progress) {
+            currentStop = result.progress.currentStop;
+            completedStops = Array.isArray(result.progress.completedStops) ? result.progress.completedStops.map(Number) : [];
+            reopenedStops = Array.isArray(result.progress.reopenedStops) ? result.progress.reopenedStops.map(Number) : [];
+            stopStatus = result.progress.stopStatus || "on_the_way";
+
+            updateCurrentStopBox();
+            renderRoute();
+
+            setStatus(
+              `GPS Tracking Active
+
+Driver: ${driverName}
+Current Auto Stop: ${currentStop || "Route complete"}
+Status: ${stopStatus}
+Updated: ${new Date().toLocaleTimeString()}`
+            );
+          }
         },
         error => {
           setStatus("GPS error: " + error.message);
