@@ -18,11 +18,139 @@ let driverProgress = {};
 
 const MINUTES_PER_STOP = 4;
 const BASE_TRAVEL_MINUTES = 5;
-const BUFFER_MINUTES = 10; // ✅ EXTRA BUFFER ADDED
+const BUFFER_MINUTES = 10;
 
-// =============================
-// UPDATE DRIVER GPS LOCATION
-// =============================
+const NEAR_RADIUS_FEET = 1000;
+const AT_STOP_RADIUS_FEET = 300;
+const LEAVE_RADIUS_FEET = 600;
+
+function feetBetween(lat1, lon1, lat2, lon2) {
+  const R = 20902231;
+  const toRad = deg => deg * Math.PI / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getDriverRoute(driverId) {
+  return assignments
+    .filter(a => a.driverId === driverId)
+    .sort((a, b) => a.stopNumber - b.stopNumber);
+}
+
+function ensureProgress(driverId) {
+  if (!driverProgress[driverId]) {
+    driverProgress[driverId] = {
+      currentStop: null,
+      completedStops: [],
+      reopenedStops: [],
+      stopStatus: "not_started",
+      hasEnteredCurrentStop: false,
+      updatedAt: null
+    };
+  }
+
+  return driverProgress[driverId];
+}
+
+function getActiveRouteOrder(driverId) {
+  const route = getDriverRoute(driverId);
+  const progress = ensureProgress(driverId);
+
+  const completedStops = (progress.completedStops || []).map(Number);
+  const reopenedStops = (progress.reopenedStops || []).map(Number);
+
+  const normalStops = route
+    .map(a => Number(a.stopNumber))
+    .filter(stop =>
+      !completedStops.includes(stop) &&
+      !reopenedStops.includes(stop)
+    );
+
+  return [...normalStops, ...reopenedStops];
+}
+
+function getStopByNumber(driverId, stopNumber) {
+  return getDriverRoute(driverId).find(
+    a => Number(a.stopNumber) === Number(stopNumber)
+  );
+}
+
+function autoUpdateDriverProgress(driverId, lat, lon) {
+  const progress = ensureProgress(driverId);
+  const activeStops = getActiveRouteOrder(driverId);
+
+  if (!activeStops.length) {
+    progress.currentStop = null;
+    progress.stopStatus = "route_complete";
+    progress.updatedAt = new Date().toISOString();
+    return;
+  }
+
+  if (!progress.currentStop || progress.completedStops.includes(progress.currentStop)) {
+    progress.currentStop = activeStops[0];
+    progress.stopStatus = "on_the_way";
+    progress.hasEnteredCurrentStop = false;
+  }
+
+  const currentStopAssignment = getStopByNumber(driverId, progress.currentStop);
+
+  if (
+    !currentStopAssignment ||
+    currentStopAssignment.lat === undefined ||
+    currentStopAssignment.lon === undefined
+  ) {
+    progress.stopStatus = "on_the_way";
+    progress.updatedAt = new Date().toISOString();
+    return;
+  }
+
+  const distanceFeet = feetBetween(
+    Number(lat),
+    Number(lon),
+    Number(currentStopAssignment.lat),
+    Number(currentStopAssignment.lon)
+  );
+
+  if (distanceFeet <= AT_STOP_RADIUS_FEET) {
+    progress.stopStatus = "at_stop";
+    progress.hasEnteredCurrentStop = true;
+  } else if (distanceFeet <= NEAR_RADIUS_FEET) {
+    progress.stopStatus = "nearby";
+    progress.hasEnteredCurrentStop = true;
+  } else if (
+    progress.hasEnteredCurrentStop &&
+    distanceFeet > LEAVE_RADIUS_FEET
+  ) {
+    if (!progress.completedStops.includes(progress.currentStop)) {
+      progress.completedStops.push(progress.currentStop);
+    }
+
+    progress.reopenedStops = progress.reopenedStops.filter(
+      s => Number(s) !== Number(progress.currentStop)
+    );
+
+    const nextActiveStops = getActiveRouteOrder(driverId);
+
+    progress.currentStop = nextActiveStops.length ? nextActiveStops[0] : null;
+    progress.stopStatus = progress.currentStop ? "on_the_way" : "route_complete";
+    progress.hasEnteredCurrentStop = false;
+  } else {
+    progress.stopStatus = "on_the_way";
+  }
+
+  progress.updatedAt = new Date().toISOString();
+}
+
+// GPS UPDATE + AUTO ROUTE PROGRESS
 app.post("/update-location", (req, res) => {
   const { id, lat, lon } = req.body;
 
@@ -41,26 +169,20 @@ app.post("/update-location", (req, res) => {
     });
   }
 
-  res.json({ status: "updated" });
+  autoUpdateDriverProgress(id, lat, lon);
+
+  res.json({
+    status: "updated",
+    progress: driverProgress[id]
+  });
 });
 
-// =============================
-// UPDATE DRIVER CURRENT STOP
-// =============================
+// MANUAL OVERRIDE STILL AVAILABLE
 app.post("/update-driver-stop", (req, res) => {
   const { driverId, currentStop } = req.body;
   const newStop = Number(currentStop);
 
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {
-      currentStop: null,
-      completedStops: [],
-      reopenedStops: [],
-      updatedAt: null
-    };
-  }
-
-  const progress = driverProgress[driverId];
+  const progress = ensureProgress(driverId);
   const oldStop = progress.currentStop;
 
   if (
@@ -72,8 +194,9 @@ app.post("/update-driver-stop", (req, res) => {
   }
 
   progress.currentStop = newStop;
+  progress.stopStatus = "on_the_way";
+  progress.hasEnteredCurrentStop = false;
   progress.updatedAt = new Date().toISOString();
-
   progress.reopenedStops = progress.reopenedStops.filter(s => s !== newStop);
 
   res.json({
@@ -84,23 +207,11 @@ app.post("/update-driver-stop", (req, res) => {
   });
 });
 
-// =============================
-// REOPEN STOP
-// =============================
 app.post("/reopen-stop", (req, res) => {
   const { driverId, stopNumber } = req.body;
   const stop = Number(stopNumber);
 
-  if (!driverProgress[driverId]) {
-    driverProgress[driverId] = {
-      currentStop: null,
-      completedStops: [],
-      reopenedStops: [],
-      updatedAt: null
-    };
-  }
-
-  const progress = driverProgress[driverId];
+  const progress = ensureProgress(driverId);
 
   progress.completedStops = progress.completedStops.filter(s => s !== stop);
 
@@ -113,9 +224,6 @@ app.post("/reopen-stop", (req, res) => {
   res.json({ status: "reopened" });
 });
 
-// =============================
-// RESET DRIVER
-// =============================
 app.post("/reset-driver", (req, res) => {
   const { driverId } = req.body;
 
@@ -123,22 +231,18 @@ app.post("/reset-driver", (req, res) => {
     currentStop: null,
     completedStops: [],
     reopenedStops: [],
+    stopStatus: "not_started",
+    hasEnteredCurrentStop: false,
     updatedAt: new Date().toISOString()
   };
 
   res.json({ status: "reset" });
 });
 
-// =============================
-// GET ALL DRIVER LOCATIONS
-// =============================
 app.get("/locations", (req, res) => {
   res.json(locations);
 });
 
-// =============================
-// GET SINGLE DRIVER LOCATION
-// =============================
 app.get("/locations/:id", (req, res) => {
   const location = locations.find(l => l.id === req.params.id);
 
@@ -149,36 +253,26 @@ app.get("/locations/:id", (req, res) => {
   res.json(location);
 });
 
-// =============================
-// GET DRIVERS
-// =============================
 app.get("/drivers", (req, res) => {
   const drivers = [...new Set(assignments.map(a => a.driverId))].sort();
   res.json(drivers);
 });
 
-// =============================
-// GET DRIVER ROUTE
-// =============================
 app.get("/driver-route/:driverId", (req, res) => {
   const driverId = String(req.params.driverId);
 
-  const route = assignments
-    .filter(a => a.driverId === driverId)
-    .sort((a, b) => a.stopNumber - b.stopNumber);
+  const route = getDriverRoute(driverId);
 
   const progress = driverProgress[driverId] || {
     currentStop: null,
     completedStops: [],
-    reopenedStops: []
+    reopenedStops: [],
+    stopStatus: "not_started"
   };
 
   res.json({ driverId, progress, route });
 });
 
-// =============================
-// PRECINCT STATUS + ETA
-// =============================
 app.get("/assignment/:precinct", (req, res) => {
   const precinct = String(req.params.precinct);
 
@@ -195,9 +289,7 @@ app.get("/assignment/:precinct", (req, res) => {
   let etaMinutes = null;
 
   if (progress && typeof progress.currentStop === "number") {
-    const driverRoute = assignments
-      .filter(a => a.driverId === assignment.driverId)
-      .sort((a, b) => a.stopNumber - b.stopNumber);
+    const driverRoute = getDriverRoute(assignment.driverId);
 
     const currentStop = Number(progress.currentStop);
     const yourStop = Number(assignment.stopNumber);
@@ -229,10 +321,20 @@ app.get("/assignment/:precinct", (req, res) => {
       if (index === -1) {
         statusCode = "completed_or_return";
       } else {
-        statusCode = "on_the_way";
         stopsBeforeYou = index;
 
-        // ✅ ETA WITH 10 MIN BUFFER
+        if (yourStop === currentStop) {
+          if (progress.stopStatus === "at_stop") {
+            statusCode = "at_stop";
+          } else if (progress.stopStatus === "nearby") {
+            statusCode = "nearby";
+          } else {
+            statusCode = "on_the_way";
+          }
+        } else {
+          statusCode = "on_the_way";
+        }
+
         etaMinutes =
           BASE_TRAVEL_MINUTES +
           (index * MINUTES_PER_STOP) +
@@ -251,9 +353,6 @@ app.get("/assignment/:precinct", (req, res) => {
   });
 });
 
-// =============================
-// ROOT
-// =============================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
