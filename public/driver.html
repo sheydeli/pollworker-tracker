@@ -5,122 +5,25 @@
   <title>Driver Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f7f7f7;
-      color: #222;
-    }
-
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 16px;
-    }
-
-    h2 {
-      margin: 0 0 16px 0;
-      font-size: 28px;
-      text-align: center;
-    }
-
-    .card {
-      background: white;
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    select, button {
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 18px;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid #ccc;
-      margin-top: 10px;
-    }
-
-    button {
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    .primary {
-      background: #0b6efd;
-      color: white;
-    }
-
-    .success {
-      background: #198754;
-      color: white;
-    }
-
-    .secondary {
-      background: #6c757d;
-      color: white;
-    }
-
-    .status-box {
-      background: white;
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 16px;
-      white-space: pre-line;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    .section-title {
-      font-size: 20px;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-
-    .route-item {
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
-      background: white;
-    }
-
-    .route-item.current {
-      border-color: #0b6efd;
-      background: #eaf2ff;
-    }
-
-    .route-item.finished {
-      border-color: #198754;
-      background: #e8f5ee;
-    }
-
-    .button-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .button-row button {
-      width: 50%;
-      margin-top: 0;
-    }
-
-    .empty {
-      color: #666;
-      font-style: italic;
-    }
-
-    .current-stop-box {
-      font-size: 20px;
-      font-weight: bold;
-      padding: 14px;
-      border-radius: 10px;
-      background: #f1f1f1;
-      text-align: center;
-      margin-top: 10px;
-    }
+    body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; color: #222; }
+    .container { max-width: 720px; margin: 0 auto; padding: 16px; }
+    h2 { margin: 0 0 16px 0; font-size: 28px; text-align: center; }
+    .card { background: white; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    select, button { width: 100%; box-sizing: border-box; font-size: 18px; padding: 14px; border-radius: 10px; border: 1px solid #ccc; margin-top: 10px; }
+    button { border: none; cursor: pointer; font-weight: bold; }
+    .primary { background: #0b6efd; color: white; }
+    .success { background: #198754; color: white; }
+    .secondary { background: #6c757d; color: white; }
+    .status-box { background: white; border-radius: 14px; padding: 16px; margin-bottom: 16px; white-space: pre-line; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .section-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+    .route-item { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: white; }
+    .route-item.current { border-color: #0b6efd; background: #eaf2ff; }
+    .route-item.finished { border-color: #198754; background: #e8f5ee; }
+    .button-row { display: flex; gap: 10px; margin-top: 10px; }
+    .button-row button { width: 100%; margin-top: 0; }
+    .empty { color: #666; font-style: italic; }
+    .current-stop-box { font-size: 20px; font-weight: bold; padding: 14px; border-radius: 10px; background: #f1f1f1; text-align: center; margin-top: 10px; }
+    .precincts { margin-top: 6px; font-weight: bold; color: #333; }
   </style>
 </head>
 <body>
@@ -135,24 +38,24 @@
       <button class="primary" onclick="loadMyRoute()">Load My Route</button>
       <button class="secondary" onclick="resetDriver()">Reset Route</button>
 
-      <div id="currentStopBox" class="current-stop-box">Current Stop: Not set</div>
+      <div id="currentStopBox" class="current-stop-box">Current Location: Not set</div>
     </div>
 
     <div id="status" class="status-box">Loading driver list...</div>
 
     <div class="card">
-      <div class="section-title">Current Auto-Detected Stop</div>
-      <div id="currentStopSection" class="empty">No current stop selected yet.</div>
+      <div class="section-title">Current Location</div>
+      <div id="currentStopSection" class="empty">No current location selected yet.</div>
     </div>
 
     <div class="card">
-      <div class="section-title">Remaining Stops</div>
+      <div class="section-title">Remaining Locations</div>
       <div id="todoSection">No route loaded yet.</div>
     </div>
 
     <div class="card">
-      <div class="section-title">Finished Stops</div>
-      <div id="finishedSection" class="empty">No finished stops yet.</div>
+      <div class="section-title">Finished Locations</div>
+      <div id="finishedSection" class="empty">No finished locations yet.</div>
     </div>
   </div>
 
@@ -160,6 +63,7 @@
     let watchId = null;
     let loadedRoute = [];
     let currentStop = null;
+    let currentGroupStops = [];
     let completedStops = [];
     let reopenedStops = [];
     let stopStatus = "not_started";
@@ -172,9 +76,45 @@
       return document.getElementById("driverSelect").value;
     }
 
+    function keyForStop(stop) {
+      if (stop.lat !== undefined && stop.lon !== undefined) {
+        return `${Number(stop.lat).toFixed(5)},${Number(stop.lon).toFixed(5)}`;
+      }
+      return `${stop.placeName}|${stop.streetAddress}`;
+    }
+
+    function groupRoute(route) {
+      const map = {};
+
+      route.forEach(stop => {
+        const key = keyForStop(stop);
+
+        if (!map[key]) {
+          map[key] = {
+            key,
+            placeName: stop.placeName,
+            streetAddress: stop.streetAddress,
+            lat: stop.lat,
+            lon: stop.lon,
+            firstStopNumber: Number(stop.stopNumber),
+            stops: [],
+            precincts: []
+          };
+        }
+
+        map[key].stops.push(stop);
+        map[key].precincts.push(stop.precinct);
+        map[key].firstStopNumber = Math.min(map[key].firstStopNumber, Number(stop.stopNumber));
+      });
+
+      return Object.values(map).sort((a, b) => a.firstStopNumber - b.firstStopNumber);
+    }
+
     function updateCurrentStopBox() {
+      const group = getCurrentGroup();
+
       document.getElementById("currentStopBox").innerText =
-        currentStop ? `Auto Target Stop: ${currentStop}` : "Auto Target Stop: Not set";
+        group ? `Current Location: ${group.placeName}` : "Current Location: Not set";
     }
 
     async function loadDrivers() {
@@ -217,6 +157,7 @@
 
       loadedRoute = data.route;
       currentStop = data.progress.currentStop ? Number(data.progress.currentStop) : null;
+      currentGroupStops = Array.isArray(data.progress.currentGroupStops) ? data.progress.currentGroupStops.map(Number) : [];
       completedStops = Array.isArray(data.progress.completedStops) ? data.progress.completedStops.map(Number) : [];
       reopenedStops = Array.isArray(data.progress.reopenedStops) ? data.progress.reopenedStops.map(Number) : [];
       stopStatus = data.progress.stopStatus || "not_started";
@@ -229,22 +170,30 @@
         `GPS Tracking Active
 
 Driver: ${driverName}
-Current Auto Stop: ${currentStop || "Waiting for GPS"}
+Current Location: ${getCurrentGroup()?.placeName || "Waiting for GPS"}
 Status: ${stopStatus}`
       );
     }
 
-    function makeStopCard(stop, cssClass, showNavigate, showReopen) {
+    function getCurrentGroup() {
+      if (!currentStop) return null;
+
+      return groupRoute(loadedRoute).find(group =>
+        group.stops.some(stop => Number(stop.stopNumber) === Number(currentStop))
+      );
+    }
+
+    function makeGroupCard(group, cssClass, showNavigate, showReopen) {
       const div = document.createElement("div");
       div.className = `route-item ${cssClass || ""}`;
 
-      const encodedAddress = encodeURIComponent(`${stop.streetAddress}, Philadelphia, PA`);
+      const encodedAddress = encodeURIComponent(`${group.streetAddress}, Philadelphia, PA`);
 
       div.innerHTML = `
-        <div><strong>Stop ${stop.stopNumber}</strong></div>
-        <div><strong>Precinct:</strong> ${stop.precinct}</div>
-        <div><strong>Location:</strong> ${stop.placeName}</div>
-        <div><strong>Address:</strong> ${stop.streetAddress}</div>
+        <div><strong>${group.placeName}</strong></div>
+        <div><strong>Address:</strong> ${group.streetAddress}</div>
+        <div class="precincts">Precincts: ${group.precincts.join(", ")}</div>
+        <div><strong>Precinct Count:</strong> ${group.precincts.length}</div>
       `;
 
       if (showNavigate) {
@@ -257,7 +206,7 @@ Status: ${stopStatus}`
 
       if (showReopen) {
         div.innerHTML += `
-          <button class="secondary" onclick="reopenStop(${stop.stopNumber})">Reopen Stop</button>
+          <button class="secondary" onclick="reopenStop(${group.firstStopNumber})">Reopen Location</button>
         `;
       }
 
@@ -273,44 +222,40 @@ Status: ${stopStatus}`
       todoSection.innerHTML = "";
       finishedSection.innerHTML = "";
 
-      const currentItem = loadedRoute.find(s => Number(s.stopNumber) === Number(currentStop));
+      const groups = groupRoute(loadedRoute);
 
-      const finishedItems = loadedRoute.filter(s =>
-        completedStops.includes(Number(s.stopNumber))
+      const currentGroup = getCurrentGroup();
+
+      const finishedGroups = groups.filter(group =>
+        group.stops.every(stop => completedStops.includes(Number(stop.stopNumber)))
       );
 
-      const todoItemsNormal = loadedRoute.filter(s =>
-        Number(s.stopNumber) !== Number(currentStop) &&
-        !completedStops.includes(Number(s.stopNumber)) &&
-        !reopenedStops.includes(Number(s.stopNumber))
-      );
+      const todoGroups = groups.filter(group => {
+        const isCurrent = currentGroup && group.key === currentGroup.key;
+        const isFinished = group.stops.every(stop => completedStops.includes(Number(stop.stopNumber)));
+        return !isCurrent && !isFinished;
+      });
 
-      const todoItemsReopened = reopenedStops
-        .map(stopNumber => loadedRoute.find(s => Number(s.stopNumber) === Number(stopNumber)))
-        .filter(Boolean);
-
-      const todoItems = [...todoItemsNormal, ...todoItemsReopened];
-
-      if (currentItem) {
-        currentSection.appendChild(makeStopCard(currentItem, "current", true, false));
+      if (currentGroup) {
+        currentSection.appendChild(makeGroupCard(currentGroup, "current", true, false));
       } else {
-        currentSection.innerHTML = `<div class="empty">Waiting for GPS to assign current stop.</div>`;
+        currentSection.innerHTML = `<div class="empty">Waiting for GPS to assign current location.</div>`;
       }
 
-      if (todoItems.length) {
-        todoItems.forEach(stop => {
-          todoSection.appendChild(makeStopCard(stop, "", true, false));
+      if (todoGroups.length) {
+        todoGroups.forEach(group => {
+          todoSection.appendChild(makeGroupCard(group, "", true, false));
         });
       } else {
-        todoSection.innerHTML = `<div class="empty">No remaining stops.</div>`;
+        todoSection.innerHTML = `<div class="empty">No remaining locations.</div>`;
       }
 
-      if (finishedItems.length) {
-        finishedItems.forEach(stop => {
-          finishedSection.appendChild(makeStopCard(stop, "finished", false, true));
+      if (finishedGroups.length) {
+        finishedGroups.forEach(group => {
+          finishedSection.appendChild(makeGroupCard(group, "finished", false, true));
         });
       } else {
-        finishedSection.innerHTML = `<div class="empty">No finished stops yet.</div>`;
+        finishedSection.innerHTML = `<div class="empty">No finished locations yet.</div>`;
       }
     }
 
@@ -324,7 +269,7 @@ Status: ${stopStatus}`
       });
 
       await loadMyRoute();
-      setStatus(`Stop ${stopNumber} moved back to the end of the route.`);
+      setStatus("Location moved back to the end of the route.");
     }
 
     async function resetDriver() {
@@ -372,6 +317,7 @@ Status: ${stopStatus}`
 
           if (result.progress) {
             currentStop = result.progress.currentStop;
+            currentGroupStops = Array.isArray(result.progress.currentGroupStops) ? result.progress.currentGroupStops.map(Number) : [];
             completedStops = Array.isArray(result.progress.completedStops) ? result.progress.completedStops.map(Number) : [];
             reopenedStops = Array.isArray(result.progress.reopenedStops) ? result.progress.reopenedStops.map(Number) : [];
             stopStatus = result.progress.stopStatus || "on_the_way";
@@ -383,7 +329,7 @@ Status: ${stopStatus}`
               `GPS Tracking Active
 
 Driver: ${driverName}
-Current Auto Stop: ${currentStop || "Route complete"}
+Current Location: ${getCurrentGroup()?.placeName || "Route complete"}
 Status: ${stopStatus}
 Updated: ${new Date().toLocaleTimeString()}`
             );
