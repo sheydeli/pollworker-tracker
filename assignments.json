@@ -1,17 +1,17 @@
 [
   {
-    "placeName": "BARRY RECREATION CENTER",
-    "streetAddress": "1800 BIGLER ST",
-    "precinct": "2605",
+    "placeName": "TEST STOP - 1400 BROAD STREET",
+    "streetAddress": "1400 BROAD ST",
+    "precinct": "9999",
     "driverId": "Nadirah Muhammad",
     "stopNumber": 1,
-    "lat": 39.9176,
-    "lon": -75.1735
+    "lat": 39.9526,
+    "lon": -75.1652
   },
   {
     "placeName": "BARRY RECREATION CENTER",
     "streetAddress": "1800 BIGLER ST",
-    "precinct": "2606",
+    "precinct": "2605",
     "driverId": "Nadirah Muhammad",
     "stopNumber": 2,
     "lat": 39.9176,
@@ -20,9 +20,18 @@
   {
     "placeName": "BARRY RECREATION CENTER",
     "streetAddress": "1800 BIGLER ST",
-    "precinct": "2609",
+    "precinct": "2606",
     "driverId": "Nadirah Muhammad",
     "stopNumber": 3,
+    "lat": 39.9176,
+    "lon": -75.1735
+  },
+  {
+    "placeName": "BARRY RECREATION CENTER",
+    "streetAddress": "1800 BIGLER ST",
+    "precinct": "2609",
+    "driverId": "Nadirah Muhammad",
+    "stopNumber": 4,
     "lat": 39.9176,
     "lon": -75.1735
   },
@@ -31,7 +40,7 @@
     "streetAddress": "1526 PACKER AVE",
     "precinct": "3914",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 4,
+    "stopNumber": 5,
     "lat": 39.9066,
     "lon": -75.1695
   },
@@ -40,7 +49,7 @@
     "streetAddress": "3301 S 20TH ST",
     "precinct": "2603",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 5,
+    "stopNumber": 6,
     "lat": 39.9099,
     "lon": -75.1826
   },
@@ -49,7 +58,7 @@
     "streetAddress": "3301 S 20TH ST",
     "precinct": "2602",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 6,
+    "stopNumber": 7,
     "lat": 39.9099,
     "lon": -75.1826
   },
@@ -58,7 +67,7 @@
     "streetAddress": "3301 S 20TH ST",
     "precinct": "2601",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 7,
+    "stopNumber": 8,
     "lat": 39.9099,
     "lon": -75.1826
   },
@@ -67,7 +76,7 @@
     "streetAddress": "3301 S 20TH ST",
     "precinct": "2623",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 8,
+    "stopNumber": 9,
     "lat": 39.9099,
     "lon": -75.1826
   },
@@ -76,7 +85,7 @@
     "streetAddress": "3301 S 20TH ST",
     "precinct": "2620",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 9,
+    "stopNumber": 10,
     "lat": 39.9099,
     "lon": -75.1826
   },
@@ -85,7 +94,7 @@
     "streetAddress": "2136 W RITNER ST",
     "precinct": "2615",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 10,
+    "stopNumber": 11,
     "lat": 39.9223,
     "lon": -75.1835
   },
@@ -94,7 +103,7 @@
     "streetAddress": "2136 W RITNER ST",
     "precinct": "2613",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 11,
+    "stopNumber": 12,
     "lat": 39.9223,
     "lon": -75.1835
   },
@@ -103,7 +112,7 @@
     "streetAddress": "2136 W RITNER ST",
     "precinct": "2614",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 12,
+    "stopNumber": 13,
     "lat": 39.9223,
     "lon": -75.1835
   },
@@ -112,7 +121,7 @@
     "streetAddress": "2136 W RITNER ST",
     "precinct": "2618",
     "driverId": "Nadirah Muhammad",
-    "stopNumber": 13,
+    "stopNumber": 14,
     "lat": 39.9223,
     "lon": -75.1835
   },
